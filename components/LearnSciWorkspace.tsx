@@ -2,12 +2,8 @@
 
 import {
   BookOpen,
-  Bot,
-  Brain,
-  Check,
   ChevronRight,
   Circle,
-  Command,
   GraduationCap,
   Mic,
   MicOff,
@@ -27,7 +23,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { classroomScan, curriculum, getTopic, type CurriculumTopic } from "@/lib/curriculum";
+import { curriculum, getTopic, type CurriculumItem, type CurriculumTopic } from "@/lib/curriculum";
 import type { TutorToolCall } from "@/lib/openrouter";
 
 type SessionState = "idle" | "recording" | "thinking" | "error";
@@ -75,17 +71,22 @@ type TutorResponse = {
   error?: string;
 };
 
+type Point = {
+  x: number;
+  y: number;
+};
+
+type Stroke = {
+  id: string;
+  points: Point[];
+};
+
 function uid(prefix: string) {
   return `${prefix}-${crypto.randomUUID()}`;
 }
 
 function classNames(...values: Array<string | false | undefined>) {
   return values.filter(Boolean).join(" ");
-}
-
-function topicProgress(topic: CurriculumTopic) {
-  const completed = topic.items.filter((item) => item.status === "completed").length;
-  return Math.round((completed / topic.items.length) * 100);
 }
 
 function preferredAudioMime() {
@@ -113,15 +114,30 @@ function blobToBase64(blob: Blob) {
   });
 }
 
+function lessonQuestions(topic: CurriculumTopic, lesson: CurriculumItem) {
+  const firstSkill = lesson.skills[0] ?? topic.name;
+  return [
+    `Teach me ${lesson.title} from scratch.`,
+    `Quiz me on ${firstSkill} and explain each answer.`,
+    `Draw a diagram for ${lesson.title}.`,
+    lesson.reviewPrompt,
+  ];
+}
+
+function initialPrompt(topic: CurriculumTopic, lesson: CurriculumItem) {
+  return `Teach the lesson "${lesson.title}" in ${topic.name}. Start with the core idea, then ask me one question. Use the canvas if a diagram helps.`;
+}
+
 export function LearnSciWorkspace() {
   const [selectedTopicId, setSelectedTopicId] = useState("culminating");
+  const [selectedLessonIndex, setSelectedLessonIndex] = useState(0);
   const [sessionState, setSessionState] = useState<SessionState>("idle");
-  const [status, setStatus] = useState("OpenRouter pipeline idle");
+  const [status, setStatus] = useState("Ready");
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "system-start",
       role: "system",
-      text: "Choose a unit, talk or type, and use the canvas while you study. The curriculum outline is sanitized from Classroom titles and topics.",
+      text: "Pick a lesson, draw, ask, or talk.",
     },
   ]);
   const [input, setInput] = useState("");
@@ -136,19 +152,27 @@ export function LearnSciWorkspace() {
   const playerRef = useRef<HTMLAudioElement | null>(null);
 
   const selectedTopic = useMemo(() => getTopic(selectedTopicId), [selectedTopicId]);
+  const selectedLesson = selectedTopic.items[selectedLessonIndex] ?? selectedTopic.items[0];
+  const latestAssistant = [...messages].reverse().find((message) => message.role === "assistant");
+  const latestUser = [...messages].reverse().find((message) => message.role === "user");
+  const questions = useMemo(
+    () => lessonQuestions(selectedTopic, selectedLesson),
+    [selectedLesson, selectedTopic],
+  );
 
   const addMessage = useCallback((role: Message["role"], text: string) => {
     if (!text.trim()) return;
-    setMessages((current) => [...current, { id: uid(role), role, text: text.trim() }].slice(-20));
+    setMessages((current) => [...current, { id: uid(role), role, text: text.trim() }].slice(-14));
   }, []);
 
   const boardSummary = useCallback(() => {
     return [
-      `${strokeCount} freehand ink groups`,
-      diagram ? `AI diagram "${diagram.title}" with ${diagram.nodes.length} nodes` : "no AI diagram",
-      `active topic ${selectedTopic.name}`,
+      `${strokeCount} ink groups`,
+      diagram ? `diagram "${diagram.title}" with ${diagram.nodes.length} nodes` : "no diagram",
+      `unit ${selectedTopic.name}`,
+      `lesson ${selectedLesson.title}`,
     ].join("; ");
-  }, [diagram, selectedTopic.name, strokeCount]);
+  }, [diagram, selectedLesson.title, selectedTopic.name, strokeCount]);
 
   const playAudio = useCallback((dataUrl?: string) => {
     if (!dataUrl) return;
@@ -156,7 +180,7 @@ export function LearnSciWorkspace() {
     const audio = new Audio(dataUrl);
     playerRef.current = audio;
     void audio.play().catch(() => {
-      setStatus("Speech generated; browser blocked autoplay");
+      setStatus("Audio ready");
     });
   }, []);
 
@@ -169,6 +193,7 @@ export function LearnSciWorkspace() {
 
         if (toolCall.name === "highlight_topic") {
           setSelectedTopicId(toolCall.arguments.topicId);
+          setSelectedLessonIndex(0);
         }
 
         if (toolCall.name === "create_quiz_card") {
@@ -180,7 +205,7 @@ export function LearnSciWorkspace() {
               answer: toolCall.arguments.answer,
             },
             ...cards,
-          ].slice(0, 10));
+          ].slice(0, 6));
         }
       }
     },
@@ -203,7 +228,6 @@ export function LearnSciWorkspace() {
 
       applyToolCalls(response.toolCalls);
       playAudio(response.audio?.dataUrl);
-
     },
     [addMessage, applyToolCalls, playAudio],
   );
@@ -211,7 +235,7 @@ export function LearnSciWorkspace() {
   const requestTutor = useCallback(
     async (endpoint: "/api/tutor/chat" | "/api/tutor/voice", body: Record<string, unknown>) => {
       setSessionState("thinking");
-      setStatus("Transcribe, reason, draw, speak");
+      setStatus("Thinking");
 
       try {
         const response = await fetch(endpoint, {
@@ -238,23 +262,31 @@ export function LearnSciWorkspace() {
 
         handleTutorResponse(json);
         setSessionState("idle");
-        setStatus("OpenRouter pipeline idle");
+        setStatus("Ready");
       } catch (error) {
         const message = error instanceof Error ? error.message : "Tutor request failed";
         setSessionState("error");
-        setStatus(message);
+        setStatus("Error");
         addMessage("system", message);
       }
     },
     [addMessage, boardSummary, handleTutorResponse, messages, selectedTopicId],
   );
 
+  const sendPrompt = useCallback(
+    (message: string, speak = true) => {
+      if (!message.trim() || sessionState === "thinking") return;
+      void requestTutor("/api/tutor/chat", { message, speak });
+    },
+    [requestTutor, sessionState],
+  );
+
   const submitText = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const message = input.trim();
-    if (!message || sessionState === "thinking") return;
+    if (!message) return;
     setInput("");
-    void requestTutor("/api/tutor/chat", { message, speak: true });
+    sendPrompt(message);
   };
 
   const stopRecording = useCallback(() => {
@@ -296,7 +328,7 @@ export function LearnSciWorkspace() {
 
         if (blob.size < 1000) {
           setSessionState("idle");
-          setStatus("Recording was too short");
+          setStatus("Too short");
           return;
         }
 
@@ -317,166 +349,85 @@ export function LearnSciWorkspace() {
     } catch (error) {
       const message = error instanceof Error ? error.message : "Microphone unavailable";
       setSessionState("error");
-      setStatus(message);
+      setStatus("Error");
       addMessage("system", message);
     }
   }, [addMessage, requestTutor, sessionState, stopRecording]);
 
+  const chooseTopic = (topicId: string) => {
+    setSelectedTopicId(topicId);
+    setSelectedLessonIndex(0);
+    setDiagram(null);
+  };
+
+  const chooseLesson = (index: number) => {
+    setSelectedLessonIndex(index);
+    setDiagram(null);
+  };
+
   const askAboutBoard = () => {
-    if (sessionState === "thinking") return;
-    void requestTutor("/api/tutor/chat", {
-      message: "Use the current board state to improve the diagram or explain what I should add next.",
-      speak: true,
-    });
+    sendPrompt("Use the current drawing and lesson context to teach the next step.");
   };
 
   return (
-    <main className="app-shell workspace">
-      <aside className="sidebar" aria-label="Curriculum">
-        <div className="brand-row">
-          <div className="brand-mark">
+    <main className="learn-app">
+      <aside className="lesson-rail" aria-label="Lessons">
+        <div className="rail-brand">
+          <div className="rail-mark">
             <GraduationCap size={18} aria-hidden="true" />
           </div>
           <div>
-            <p className="eyebrow">LearnSci</p>
-            <h1>ICS4U review</h1>
+            <h1>LearnSci</h1>
+            <span>ICS4U</span>
           </div>
         </div>
 
-        <div className="source-card">
-          <div className="source-icon">
-            <BookOpen size={15} aria-hidden="true" />
-          </div>
-          <div>
-            <span>{classroomScan.course}</span>
-            <small>{classroomScan.scannedAt} Firefox scan</small>
-          </div>
-        </div>
-
-        <nav className="topic-list" aria-label="Study units">
-          {curriculum.map((topic) => {
-            const progress = topicProgress(topic);
-            const selected = topic.id === selectedTopicId;
-
-            return (
+        <div className="rail-section">
+          <span className="rail-label">Units</span>
+          <nav className="unit-list" aria-label="Course units">
+            {curriculum.map((topic) => (
               <button
+                className={classNames("unit-button", topic.id === selectedTopicId && "active")}
                 key={topic.id}
-                className={classNames("topic-button", selected && "selected")}
-                onClick={() => setSelectedTopicId(topic.id)}
+                onClick={() => chooseTopic(topic.id)}
                 type="button"
               >
-                <span className="topic-dot" style={{ background: topic.accent }} />
-                <span className="topic-copy">
-                  <strong>{topic.name}</strong>
-                  <span>{progress}% reviewed from classwork</span>
-                </span>
-                <ChevronRight size={15} aria-hidden="true" />
+                <span className="unit-dot" style={{ background: topic.accent }} />
+                <span>{topic.name}</span>
               </button>
-            );
-          })}
-        </nav>
-
-        <div className="connection-card">
-          <button
-            className={classNames("primary-button", sessionState === "recording" && "danger-button")}
-            onClick={startRecording}
-            type="button"
-          >
-            {sessionState === "recording" ? <MicOff size={16} /> : <Mic size={16} />}
-            {sessionState === "recording" ? "Stop and send" : "Talk"}
-          </button>
+            ))}
+          </nav>
         </div>
+
+        <div className="rail-section lesson-queue">
+          <span className="rail-label">Lessons</span>
+          <div className="lesson-list">
+            {selectedTopic.items.map((lesson, index) => (
+              <button
+                className={classNames("lesson-button", index === selectedLessonIndex && "active")}
+                key={`${lesson.title}-${index}`}
+                onClick={() => chooseLesson(index)}
+                type="button"
+              >
+                <BookOpen size={14} aria-hidden="true" />
+                <span>{lesson.title}</span>
+                <ChevronRight size={13} aria-hidden="true" />
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <button
+          className={classNames("talk-button", sessionState === "recording" && "recording")}
+          onClick={startRecording}
+          type="button"
+        >
+          {sessionState === "recording" ? <MicOff size={17} /> : <Mic size={17} />}
+          {sessionState === "recording" ? "Stop" : "Talk"}
+        </button>
       </aside>
 
-      <section className="lesson-panel" aria-label="Selected topic">
-        <header className="lesson-header">
-          <div>
-            <p className="eyebrow">{selectedTopic.examWeight} review</p>
-            <h2>{selectedTopic.name}</h2>
-          </div>
-          <span className="model-pill">
-            <Bot size={15} aria-hidden="true" />
-            OpenRouter
-          </span>
-        </header>
-
-        <p className="objective">{selectedTopic.objective}</p>
-
-        <div className="checkpoint-grid">
-          {selectedTopic.checkpoints.map((checkpoint) => (
-            <div className="checkpoint" key={checkpoint}>
-              <Check size={14} aria-hidden="true" />
-              <span>{checkpoint}</span>
-            </div>
-          ))}
-        </div>
-
-        <div className="section-title">
-          <Command size={15} aria-hidden="true" />
-          <span>Classroom sequence</span>
-        </div>
-        <div className="item-list">
-          {selectedTopic.items.map((item) => (
-            <article className="classwork-item" key={item.title}>
-              <div>
-                <span className={`item-type ${item.type}`}>{item.type}</span>
-                <h3>{item.title}</h3>
-                <p>{item.reviewPrompt}</p>
-              </div>
-              <div className="item-meta">
-                <span>{item.due ? `Due ${item.due}` : item.date}</span>
-                <small>{item.skills.slice(0, 3).join(" / ")}</small>
-              </div>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section className="studio-panel" aria-label="Tutor and whiteboard">
-        <div className="tutor-card">
-          <header className="panel-header">
-            <div>
-              <p className="eyebrow">MAI voice loop</p>
-              <h2>Transcribe, tutor, speak</h2>
-            </div>
-            <span className={classNames("status-dot", sessionState)} />
-          </header>
-
-          <div className="pipeline-strip" aria-label="Active model pipeline">
-            <span>microsoft/mai-transcribe-1.5</span>
-            <span>openai/gpt-5.4-mini</span>
-            <span>microsoft/mai-voice-2</span>
-          </div>
-
-          <div className="message-log" aria-live="polite">
-            {messages.map((message) => (
-              <div className={`message ${message.role}`} key={message.id}>
-                <span>{message.role}</span>
-                <p>{message.text}</p>
-              </div>
-            ))}
-            {sessionState === "thinking" ? (
-              <div className="message assistant live">
-                <span>system</span>
-                <p>{status}</p>
-              </div>
-            ) : null}
-          </div>
-
-          <form className="composer" onSubmit={submitText}>
-            <input
-              aria-label="Ask LearnSci"
-              disabled={sessionState === "thinking" || sessionState === "recording"}
-              onChange={(event) => setInput(event.target.value)}
-              placeholder="Ask for a trace, quiz, UML sketch, or exam drill..."
-              value={input}
-            />
-            <button disabled={sessionState === "thinking"} title="Send" type="submit">
-              <Send size={16} aria-hidden="true" />
-            </button>
-          </form>
-        </div>
-
+      <section className="canvas-stage" aria-label="Lesson canvas">
         <Whiteboard
           diagram={diagram}
           onAskAboutBoard={askAboutBoard}
@@ -484,36 +435,68 @@ export function LearnSciWorkspace() {
           onStrokeCountChange={setStrokeCount}
         />
 
-        <div className="quiz-strip" aria-label="Saved quiz cards">
-          <div className="section-title">
-            <Brain size={15} aria-hidden="true" />
-            <span>Saved review cards</span>
+        <div className="lesson-overlay">
+          <div>
+            <span className="lesson-kicker">{selectedTopic.name}</span>
+            <h2>{selectedLesson.title}</h2>
+            <p>{selectedLesson.reviewPrompt}</p>
+          </div>
+          <button
+            className="start-lesson"
+            disabled={sessionState === "thinking"}
+            onClick={() => sendPrompt(initialPrompt(selectedTopic, selectedLesson))}
+            type="button"
+          >
+            Start lesson
+          </button>
+        </div>
+
+        <div className="question-dock" aria-label="Practice questions">
+          {questions.map((question) => (
+            <button
+              disabled={sessionState === "thinking"}
+              key={question}
+              onClick={() => sendPrompt(question)}
+              type="button"
+            >
+              {question}
+            </button>
+          ))}
+        </div>
+
+        <div className="answer-dock" aria-live="polite">
+          <div className="answer-thread">
+            <span>{status}</span>
+            <p>
+              {latestAssistant?.text ??
+                latestUser?.text ??
+                "Pick a lesson, then start teaching or ask a question."}
+            </p>
           </div>
           {quizCards.length ? (
-            quizCards.map((card) => (
-              <details className="quiz-card" key={card.id}>
-                <summary>{card.question}</summary>
-                <p>{card.answer}</p>
-              </details>
-            ))
-          ) : (
-            <p className="empty-copy">Ask the tutor to save quiz cards while you review.</p>
-          )}
+            <details className="review-card">
+              <summary>{quizCards[0].question}</summary>
+              <p>{quizCards[0].answer}</p>
+            </details>
+          ) : null}
         </div>
+
+        <form className="ask-bar" onSubmit={submitText}>
+          <input
+            aria-label="Ask LearnSci"
+            disabled={sessionState === "thinking" || sessionState === "recording"}
+            onChange={(event) => setInput(event.target.value)}
+            placeholder="Ask about this lesson..."
+            value={input}
+          />
+          <button disabled={sessionState === "thinking"} title="Send" type="submit">
+            <Send size={16} aria-hidden="true" />
+          </button>
+        </form>
       </section>
     </main>
   );
 }
-
-type Point = {
-  x: number;
-  y: number;
-};
-
-type Stroke = {
-  id: string;
-  points: Point[];
-};
 
 function Whiteboard({
   diagram,
@@ -549,12 +532,12 @@ function Whiteboard({
 
     context.setTransform(scale, 0, 0, scale, 0, 0);
     context.clearRect(0, 0, rect.width, rect.height);
-    context.fillStyle = "#0a0c0c";
+    context.fillStyle = "#080909";
     context.fillRect(0, 0, rect.width, rect.height);
 
-    context.fillStyle = "rgba(239, 243, 239, 0.08)";
-    for (let x = 20; x < rect.width; x += 24) {
-      for (let y = 20; y < rect.height; y += 24) {
+    context.fillStyle = "rgba(232, 238, 234, 0.075)";
+    for (let x = 28; x < rect.width; x += 28) {
+      for (let y = 28; y < rect.height; y += 28) {
         context.beginPath();
         context.arc(x, y, 1, 0, Math.PI * 2);
         context.fill();
@@ -567,8 +550,8 @@ function Whiteboard({
 
     context.lineCap = "round";
     context.lineJoin = "round";
-    context.strokeStyle = "#eff3ef";
-    context.lineWidth = 2.2;
+    context.strokeStyle = "#f1f5f1";
+    context.lineWidth = 2.1;
 
     for (const stroke of activeStroke ? [...strokes, activeStroke] : strokes) {
       context.beginPath();
@@ -622,47 +605,39 @@ function Whiteboard({
   }, [drawBoard]);
 
   return (
-    <div className="whiteboard-card">
-      <header className="panel-header">
-        <div>
-          <p className="eyebrow">Board</p>
-          <h2>Canvas notes</h2>
-        </div>
-        <div className="board-tools">
-          <button title="Pen" type="button">
-            <PenLine size={15} aria-hidden="true" />
-          </button>
-          <button onClick={onAskAboutBoard} title="Ask AI about board" type="button">
-            <Sparkles size={15} aria-hidden="true" />
-          </button>
-          <button onClick={clearStrokes} title="Clear ink" type="button">
-            <Trash2 size={15} aria-hidden="true" />
-          </button>
-          <button onClick={onClearDiagram} title="Clear AI diagram" type="button">
-            <Square size={15} aria-hidden="true" />
-          </button>
-        </div>
-      </header>
+    <>
       <canvas
         aria-label="Drawing canvas"
-        className="whiteboard-canvas"
+        className="lesson-canvas"
         onPointerDown={beginStroke}
         onPointerLeave={endStroke}
         onPointerMove={extendStroke}
         onPointerUp={endStroke}
         ref={canvasRef}
       />
-      <div className="board-footer">
+      <div className="canvas-tools" aria-label="Canvas tools">
+        <button title="Pen" type="button">
+          <PenLine size={16} aria-hidden="true" />
+        </button>
+        <button onClick={onAskAboutBoard} title="Ask about canvas" type="button">
+          <Sparkles size={16} aria-hidden="true" />
+        </button>
+        <button onClick={clearStrokes} title="Clear ink" type="button">
+          <Trash2 size={16} aria-hidden="true" />
+        </button>
+        <button onClick={onClearDiagram} title="Clear diagram" type="button">
+          <Square size={16} aria-hidden="true" />
+        </button>
         <span>
-          <Circle size={8} fill="currentColor" aria-hidden="true" />
-          {strokes.length} ink groups
+          <Circle size={7} fill="currentColor" aria-hidden="true" />
+          {strokes.length}
         </span>
         <span>
           <Volume2 size={12} aria-hidden="true" />
-          {diagram ? `${diagram.title} diagram` : "No AI diagram yet"}
+          {diagram ? "diagram" : "blank"}
         </span>
       </div>
-    </div>
+    </>
   );
 }
 
@@ -672,21 +647,21 @@ function drawDiagram(
   height: number,
   diagram: Diagram,
 ) {
-  const nodeWidth = Math.min(172, Math.max(112, width / 4.2));
+  const nodeWidth = Math.min(180, Math.max(122, width / 5));
   const nodeHeight = 58;
-  const gap = 22;
+  const gap = 26;
   const columns = diagram.kind === "stack" ? 1 : Math.min(3, Math.max(1, diagram.nodes.length));
   const rows = Math.ceil(diagram.nodes.length / columns);
   const totalWidth = columns * nodeWidth + (columns - 1) * gap;
-  const startX = Math.max(24, (width - totalWidth) / 2);
-  const startY = Math.max(58, (height - rows * (nodeHeight + gap)) / 2);
+  const startX = Math.max(34, (width - totalWidth) / 2);
+  const startY = Math.max(142, (height - rows * (nodeHeight + gap)) / 2);
 
   const positions = new Map<string, { x: number; y: number; cx: number; cy: number }>();
 
   context.save();
   context.font = "600 13px ui-sans-serif, system-ui";
-  context.fillStyle = "#eff3ef";
-  context.fillText(diagram.title, 24, 32);
+  context.fillStyle = "#f1f5f1";
+  context.fillText(diagram.title, 34, 92);
 
   diagram.nodes.forEach((node, index) => {
     const column = index % columns;
@@ -696,8 +671,8 @@ function drawDiagram(
     positions.set(node.id, { x, y, cx: x + nodeWidth / 2, cy: y + nodeHeight / 2 });
   });
 
-  context.strokeStyle = "rgba(143, 216, 255, 0.56)";
-  context.fillStyle = "rgba(143, 216, 255, 0.76)";
+  context.strokeStyle = "rgba(150, 230, 188, 0.62)";
+  context.fillStyle = "rgba(150, 230, 188, 0.82)";
   context.lineWidth = 1.5;
 
   for (const edge of diagram.edges ?? []) {
@@ -711,7 +686,7 @@ function drawDiagram(
     context.stroke();
 
     if (edge.label) {
-      context.fillText(edge.label, (from.cx + to.cx) / 2 + 4, (from.cy + to.cy) / 2 - 4);
+      context.fillText(edge.label, (from.cx + to.cx) / 2 + 5, (from.cy + to.cy) / 2 - 5);
     }
   }
 
@@ -719,19 +694,19 @@ function drawDiagram(
     const position = positions.get(node.id);
     if (!position) return;
 
-    context.fillStyle = "rgba(20, 23, 23, 0.94)";
-    context.strokeStyle = "rgba(239, 243, 239, 0.22)";
+    context.fillStyle = "rgba(13, 15, 15, 0.96)";
+    context.strokeStyle = "rgba(232, 238, 234, 0.24)";
     roundRect(context, position.x, position.y, nodeWidth, nodeHeight, 8);
     context.fill();
     context.stroke();
 
-    context.fillStyle = "#eff3ef";
+    context.fillStyle = "#f1f5f1";
     context.font = "600 12px ui-sans-serif, system-ui";
-    context.fillText(node.label.slice(0, 22), position.x + 12, position.y + 22);
+    context.fillText(node.label.slice(0, 23), position.x + 12, position.y + 22);
     if (node.detail) {
       context.fillStyle = "#9aa49e";
       context.font = "11px ui-sans-serif, system-ui";
-      context.fillText(node.detail.slice(0, 26), position.x + 12, position.y + 42);
+      context.fillText(node.detail.slice(0, 28), position.x + 12, position.y + 42);
     }
   });
 
