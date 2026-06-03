@@ -9,6 +9,31 @@ export type TutorHistoryMessage = {
 
 export type TutorToolCall =
   | {
+      name: "draw_canvas";
+      arguments: {
+        title?: string;
+        elements: Array<{
+          id: string;
+          type: "box" | "ellipse" | "diamond" | "text" | "code";
+          x: number;
+          y: number;
+          w?: number;
+          h?: number;
+          text: string;
+          color?: "blue" | "green" | "orange" | "red" | "violet" | "yellow" | "black";
+          size?: "s" | "m" | "l" | "xl";
+        }>;
+        arrows?: Array<{
+          from?: string;
+          to?: string;
+          start?: { x: number; y: number };
+          end?: { x: number; y: number };
+          label?: string;
+          color?: "blue" | "green" | "orange" | "red" | "violet" | "yellow" | "black";
+        }>;
+      };
+    }
+  | {
       name: "draw_diagram";
       arguments: {
         title: string;
@@ -109,48 +134,80 @@ export const tutorTools = [
   {
     type: "function",
     function: {
-      name: "draw_diagram",
+      name: "draw_canvas",
       description:
-        "Draw a simple study diagram on the learner's tldraw board. Use for UML, recursion stacks, array grids, sorting passes, search ranges, game loops, and maze traversal.",
+        "Draw any editable tldraw-style visual on the learner's board using explicit coordinates. Use this for arrays, tables, UML, recursion stacks, sorting traces, search ranges, mazes, timelines, code annotations, UI sketches, game loops, or any custom visual. Keep boxes large enough for text, leave generous spacing, and route arrows through empty space so labels do not cover shapes.",
       parameters: {
         type: "object",
         properties: {
           title: { type: "string" },
-          kind: {
-            type: "string",
-            enum: ["uml", "stack", "array", "flow", "maze", "timeline", "concept"],
-          },
-          nodes: {
+          elements: {
             type: "array",
             minItems: 1,
-            maxItems: 8,
+            maxItems: 24,
             items: {
               type: "object",
               properties: {
                 id: { type: "string" },
-                label: { type: "string" },
-                detail: { type: "string" },
+                type: {
+                  type: "string",
+                  enum: ["box", "ellipse", "diamond", "text", "code"],
+                },
+                x: { type: "number" },
+                y: { type: "number" },
+                w: { type: "number" },
+                h: { type: "number" },
+                text: { type: "string" },
+                color: {
+                  type: "string",
+                  enum: ["blue", "green", "orange", "red", "violet", "yellow", "black"],
+                },
+                size: {
+                  type: "string",
+                  enum: ["s", "m", "l", "xl"],
+                },
               },
-              required: ["id", "label"],
+              required: ["id", "type", "x", "y", "text"],
               additionalProperties: false,
             },
           },
-          edges: {
+          arrows: {
             type: "array",
-            maxItems: 10,
+            maxItems: 24,
             items: {
               type: "object",
               properties: {
                 from: { type: "string" },
                 to: { type: "string" },
+                start: {
+                  type: "object",
+                  properties: {
+                    x: { type: "number" },
+                    y: { type: "number" },
+                  },
+                  required: ["x", "y"],
+                  additionalProperties: false,
+                },
+                end: {
+                  type: "object",
+                  properties: {
+                    x: { type: "number" },
+                    y: { type: "number" },
+                  },
+                  required: ["x", "y"],
+                  additionalProperties: false,
+                },
                 label: { type: "string" },
+                color: {
+                  type: "string",
+                  enum: ["blue", "green", "orange", "red", "violet", "yellow", "black"],
+                },
               },
-              required: ["from", "to"],
               additionalProperties: false,
             },
           },
         },
-        required: ["title", "kind", "nodes"],
+        required: ["elements"],
         additionalProperties: false,
       },
     },
@@ -225,10 +282,12 @@ Outcome:
 - Ask short diagnostic questions, then teach only what is needed.
 - Use Java examples for programming concepts.
 - Prefer diagrams and trace tables for OOP, arrays, sorting/searching, recursion, mazes, and game loops.
-- When a visual would help, call draw_diagram. The frontend turns that tool call into editable tldraw shapes.
+- When a visual would help, call draw_canvas. The frontend turns that tool call into editable tldraw shapes.
+- draw_canvas is not a preset diagram tool. You can draw any arrangement of boxes, text, code blocks, diamonds, ellipses, and arrows.
+- For draw_canvas, use explicit coordinates with wide spacing. Put boxes at least 80 px apart, make code boxes wide, keep arrow labels short, and avoid drawing arrow labels over nodes.
 - Keep spoken answers brief: normally 2-5 sentences.
 - Do not claim access to private Classroom attachments. Work from the sanitized curriculum outline.
-- If the learner asks for a diagram, call draw_diagram and still give a short spoken explanation.
+- If the learner asks for a diagram, call draw_canvas and still give a short spoken explanation.
 
 Active unit: ${topic.name}
 Active objective: ${topic.objective}
@@ -272,6 +331,13 @@ function parseToolCalls(toolCalls: ChatToolCall[] = []): TutorToolCall[] {
     try {
       const parsed = JSON.parse(toolCall.function.arguments) as TutorToolCall["arguments"];
 
+      if (toolCall.function.name === "draw_canvas") {
+        parsedCalls.push({
+          name: "draw_canvas",
+          arguments: parsed as Extract<TutorToolCall, { name: "draw_canvas" }>["arguments"],
+        });
+      }
+
       if (toolCall.function.name === "draw_diagram") {
         parsedCalls.push({
           name: "draw_diagram",
@@ -312,7 +378,7 @@ async function postChat(messages: ChatMessage[], toolChoice: "auto" | "none") {
       tools: tutorTools,
       tool_choice: toolChoice,
       temperature: 0.35,
-      max_tokens: 900,
+      max_tokens: 1400,
       reasoning: {
         effort: "low",
       },

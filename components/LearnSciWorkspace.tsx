@@ -61,6 +61,10 @@ export type Diagram = {
   edges?: DiagramEdge[];
 };
 
+type CanvasDrawing = Extract<TutorToolCall, { name: "draw_canvas" }>["arguments"];
+type CanvasElement = CanvasDrawing["elements"][number];
+type CanvasArrow = NonNullable<CanvasDrawing["arrows"]>[number];
+
 type TutorResponse = {
   transcript?: string;
   assistant?: string;
@@ -227,6 +231,237 @@ function colorForDiagram(kind: Diagram["kind"]): TLGeoShape["props"]["color"] {
   return "light-green";
 }
 
+function colorForCanvas(color?: CanvasElement["color"] | CanvasArrow["color"]): TLGeoShape["props"]["color"] {
+  if (color === "violet") return "violet";
+  if (color === "orange") return "orange";
+  if (color === "green") return "green";
+  if (color === "red") return "red";
+  if (color === "yellow") return "yellow";
+  if (color === "black") return "black";
+  return "blue";
+}
+
+function sizeForCanvas(size?: CanvasElement["size"]): TLGeoShape["props"]["size"] {
+  if (size === "s" || size === "l" || size === "xl") return size;
+  return "m";
+}
+
+function estimateElementSize(element: CanvasElement) {
+  const lineCount = Math.max(1, element.text.split("\n").length);
+  const longestLine = Math.max(...element.text.split("\n").map((line) => line.length), 8);
+  const sizeFactor = element.size === "xl" ? 16 : element.size === "l" ? 14 : element.size === "s" ? 9 : 11;
+  const minWidth = element.type === "code" ? 300 : element.type === "text" ? 180 : 210;
+  const minHeight = element.type === "text" ? 44 : 82;
+
+  return {
+    w: Math.max(element.w ?? 0, minWidth, longestLine * sizeFactor),
+    h: Math.max(element.h ?? 0, minHeight, lineCount * 30 + 38),
+  };
+}
+
+function elementGeometry(type: CanvasElement["type"]): TLGeoShape["props"]["geo"] {
+  if (type === "ellipse") return "ellipse";
+  if (type === "diamond") return "diamond";
+  return "rectangle";
+}
+
+function canvasElementBounds(element: CanvasElement) {
+  const { w, h } = estimateElementSize(element);
+  return {
+    x: element.x,
+    y: element.y,
+    w,
+    h,
+    cx: element.x + w / 2,
+    cy: element.y + h / 2,
+  };
+}
+
+function connectionPoint(
+  element: ReturnType<typeof canvasElementBounds>,
+  target: { x: number; y: number },
+) {
+  const dx = target.x - element.cx;
+  const dy = target.y - element.cy;
+
+  if (Math.abs(dx) * element.h > Math.abs(dy) * element.w) {
+    return {
+      x: element.cx + Math.sign(dx || 1) * (element.w / 2 + 8),
+      y: element.cy + dy * ((element.w / 2 + 8) / Math.max(Math.abs(dx), 1)),
+    };
+  }
+
+  return {
+    x: element.cx + dx * ((element.h / 2 + 8) / Math.max(Math.abs(dy), 1)),
+    y: element.cy + Math.sign(dy || 1) * (element.h / 2 + 8),
+  };
+}
+
+function zoomToGeneratedBounds(editor: Editor, bounds: Box) {
+  editor.zoomToBounds(new Box(bounds.x - 380, bounds.y - 120, bounds.w + 520, bounds.h + 240), {
+    inset: 80,
+    targetZoom: 1,
+    animation: { duration: 260 },
+  });
+}
+
+function drawCanvasOnTldraw(editor: Editor, drawing: CanvasDrawing) {
+  const elementBounds = new Map<string, ReturnType<typeof canvasElementBounds>>();
+  drawing.elements.forEach((element) => {
+    elementBounds.set(element.id, canvasElementBounds(element));
+  });
+
+  const arrowShapes: TLCreateShapePartial<TLShape>[] = [];
+  const nodeShapes: TLCreateShapePartial<TLShape>[] = [];
+  const labelShapes: TLCreateShapePartial<TLShape>[] = [];
+  const allBounds: Box[] = [];
+
+  if (drawing.title) {
+    const titleShape = {
+      id: createShapeId(`canvas-title-${Date.now()}`),
+      type: "text",
+      x: 0,
+      y: -120,
+      props: {
+        richText: toRichText(drawing.title),
+        autoSize: false,
+        w: 760,
+        size: "xl",
+        color: "blue",
+        font: "sans",
+      },
+    } satisfies TLCreateShapePartial<TLTextShape>;
+    nodeShapes.push(titleShape);
+    allBounds.push(new Box(0, -120, 760, 72));
+  }
+
+  for (const arrow of drawing.arrows ?? []) {
+    const fromElement = arrow.from ? elementBounds.get(arrow.from) : undefined;
+    const toElement = arrow.to ? elementBounds.get(arrow.to) : undefined;
+    const rawStart = arrow.start ?? (fromElement ? { x: fromElement.cx, y: fromElement.cy } : undefined);
+    const rawEnd = arrow.end ?? (toElement ? { x: toElement.cx, y: toElement.cy } : undefined);
+
+    if (!rawStart || !rawEnd) continue;
+
+    const start = fromElement ? connectionPoint(fromElement, rawEnd) : rawStart;
+    const end = toElement ? connectionPoint(toElement, start) : rawEnd;
+    const color = colorForCanvas(arrow.color);
+
+    arrowShapes.push({
+      id: createShapeId(`canvas-arrow-${Date.now()}-${arrowShapes.length}`),
+      type: "arrow",
+      x: start.x,
+      y: start.y,
+      props: {
+        start: { x: 0, y: 0 },
+        end: { x: end.x - start.x, y: end.y - start.y },
+        richText: toRichText(""),
+        color,
+        labelColor: "black",
+        size: "m",
+        dash: "draw",
+        arrowheadEnd: "arrow",
+        kind: "arc",
+      },
+    } satisfies TLCreateShapePartial<TLArrowShape>);
+
+    allBounds.push(
+      new Box(
+        Math.min(start.x, end.x),
+        Math.min(start.y, end.y),
+        Math.max(Math.abs(end.x - start.x), 1),
+        Math.max(Math.abs(end.y - start.y), 1),
+      ),
+    );
+
+    if (arrow.label) {
+      const midX = (start.x + end.x) / 2;
+      const midY = (start.y + end.y) / 2;
+      const dx = end.x - start.x;
+      const dy = end.y - start.y;
+      const length = Math.max(Math.hypot(dx, dy), 1);
+      const offsetX = (-dy / length) * 20;
+      const offsetY = (dx / length) * 20;
+
+      labelShapes.push({
+        id: createShapeId(`canvas-label-${Date.now()}-${labelShapes.length}`),
+        type: "text",
+        x: midX + offsetX - 80,
+        y: midY + offsetY - 20,
+        props: {
+          richText: toRichText(arrow.label),
+          autoSize: false,
+          w: 160,
+          size: "m",
+          color,
+          font: "draw",
+        },
+      } satisfies TLCreateShapePartial<TLTextShape>);
+      allBounds.push(new Box(midX + offsetX - 80, midY + offsetY - 20, 160, 44));
+    }
+  }
+
+  for (const element of drawing.elements) {
+    const bounds = elementBounds.get(element.id);
+    if (!bounds) continue;
+
+    const color = colorForCanvas(element.color);
+
+    if (element.type === "text") {
+      nodeShapes.push({
+        id: createShapeId(`canvas-text-${element.id}-${Date.now()}`),
+        type: "text",
+        x: bounds.x,
+        y: bounds.y,
+        props: {
+          richText: toRichText(element.text),
+          autoSize: false,
+          w: bounds.w,
+          size: sizeForCanvas(element.size),
+          color,
+          font: "sans",
+        },
+      } satisfies TLCreateShapePartial<TLTextShape>);
+    } else {
+      nodeShapes.push({
+        id: createShapeId(`canvas-node-${element.id}-${Date.now()}`),
+        type: "geo",
+        x: bounds.x,
+        y: bounds.y,
+        props: {
+          geo: elementGeometry(element.type),
+          w: bounds.w,
+          h: bounds.h,
+          richText: toRichText(element.text),
+          color,
+          labelColor: "black",
+          fill: element.type === "code" ? "none" : "semi",
+          dash: element.type === "code" ? "dashed" : "solid",
+          size: sizeForCanvas(element.size),
+          font: element.type === "code" ? "mono" : "sans",
+          align: "middle",
+          verticalAlign: "middle",
+        },
+      } satisfies TLCreateShapePartial<TLGeoShape>);
+    }
+
+    allBounds.push(new Box(bounds.x, bounds.y, bounds.w, bounds.h));
+  }
+
+  const shapes = [...arrowShapes, ...nodeShapes, ...labelShapes];
+  const shapeIds = shapes.map((shape) => shape.id).filter((id): id is TLShapeId => Boolean(id));
+  const bounds =
+    allBounds.length > 1
+      ? Box.Common(allBounds)
+      : allBounds[0] ?? new Box(0, 0, 760, 420);
+
+  editor.run(() => {
+    editor.createShapes(shapes);
+    editor.select(...shapeIds);
+    zoomToGeneratedBounds(editor, bounds);
+  });
+}
+
 function drawDiagramOnTldraw(editor: Editor, diagram: Diagram) {
   const { nodeWidth, nodeHeight, positions, bounds } = diagramLayout(diagram);
   const color = colorForDiagram(diagram.kind);
@@ -303,11 +538,7 @@ function drawDiagramOnTldraw(editor: Editor, diagram: Diagram) {
   editor.run(() => {
     editor.createShapes(shapes);
     editor.select(...shapeIds);
-    editor.zoomToBounds(bounds, {
-      inset: 96,
-      targetZoom: 1,
-      animation: { duration: 260 },
-    });
+    zoomToGeneratedBounds(editor, bounds);
   });
 }
 
@@ -369,6 +600,14 @@ export function LearnSciWorkspace() {
   const applyToolCalls = useCallback(
     (toolCalls: TutorToolCall[] = []) => {
       for (const toolCall of toolCalls) {
+        if (toolCall.name === "draw_canvas") {
+          const editor = editorRef.current;
+          if (editor) {
+            drawCanvasOnTldraw(editor, toolCall.arguments);
+            updateCanvasStats(editor);
+          }
+        }
+
         if (toolCall.name === "draw_diagram") {
           const editor = editorRef.current;
           if (editor) {
