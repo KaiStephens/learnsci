@@ -167,7 +167,6 @@ export const tutorTools = [
           topicId: {
             type: "string",
             enum: [
-              "culminating",
               "graphics-gui",
               "oop",
               "algorithms",
@@ -196,7 +195,6 @@ export const tutorTools = [
           topicId: {
             type: "string",
             enum: [
-              "culminating",
               "graphics-gui",
               "oop",
               "algorithms",

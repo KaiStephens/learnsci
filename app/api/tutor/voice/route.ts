@@ -43,7 +43,7 @@ export async function POST(request: Request) {
     }
 
     const turn = await runTutorTurn({
-      topicId: body.topicId ?? "culminating",
+      topicId: body.topicId ?? "graphics-gui",
       userText: transcript,
       boardSummary: body.boardSummary ?? "No board state supplied.",
       history: body.history ?? [],

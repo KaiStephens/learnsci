@@ -8,7 +8,6 @@ import {
   MessageCircle,
   Mic,
   MicOff,
-  Video,
 } from "lucide-react";
 import { useCallback, useMemo, useRef, useState } from "react";
 import {
@@ -313,8 +312,8 @@ function drawDiagramOnTldraw(editor: Editor, diagram: Diagram) {
 }
 
 export function LearnSciWorkspace() {
-  const [selectedTopicId, setSelectedTopicId] = useState("culminating");
-  const [expandedTopicId, setExpandedTopicId] = useState("culminating");
+  const [selectedTopicId, setSelectedTopicId] = useState("graphics-gui");
+  const [expandedTopicId, setExpandedTopicId] = useState("graphics-gui");
   const [selectedLessonIndex, setSelectedLessonIndex] = useState(0);
   const [sessionState, setSessionState] = useState<SessionState>("idle");
   const [status, setStatus] = useState("Ready");
@@ -337,7 +336,6 @@ export function LearnSciWorkspace() {
 
   const selectedTopic = useMemo(() => getTopic(selectedTopicId), [selectedTopicId]);
   const selectedLesson = selectedTopic.items[selectedLessonIndex] ?? selectedTopic.items[0];
-  const selectedVideos = selectedLesson.videos ?? selectedTopic.videos ?? [];
   const latestAssistant = [...messages].reverse().find((message) => message.role === "assistant");
 
   const updateCanvasStats = useCallback((editor = editorRef.current) => {
@@ -651,18 +649,6 @@ export function LearnSciWorkspace() {
               Start lesson
             </button>
           </section>
-
-          {selectedVideos.length ? (
-            <section className="video-stack" aria-label="YouTube videos">
-              <span className="rail-label">Videos</span>
-              {selectedVideos.map((video) => (
-                <a href={video.url} key={video.url} rel="noreferrer" target="_blank">
-                  <Video size={14} aria-hidden="true" />
-                  <span>{video.title}</span>
-                </a>
-              ))}
-            </section>
-          ) : null}
 
           <section className="answer-thread" aria-live="polite">
             <span>{status}</span>

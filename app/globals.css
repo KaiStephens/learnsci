@@ -154,7 +154,6 @@ button {
 
 .rail-section,
 .lesson-context,
-.video-stack,
 .answer-thread {
   min-width: 0;
 }
@@ -190,7 +189,6 @@ button {
 .unit-button,
 .lesson-button,
 .start-lesson,
-.video-stack a,
 .voice-bubble {
   border: 1px solid transparent;
   border-radius: var(--radius);
@@ -232,8 +230,7 @@ button {
 }
 
 .lesson-button span,
-.unit-button span,
-.video-stack a span {
+.unit-button span {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -245,8 +242,6 @@ button {
 .lesson-button:hover,
 .lesson-button:focus-visible,
 .lesson-button.active,
-.video-stack a:hover,
-.video-stack a:focus-visible,
 .start-lesson:hover,
 .start-lesson:focus-visible,
 .voice-bubble:hover,
@@ -313,24 +308,6 @@ button {
 .voice-bubble:disabled {
   cursor: not-allowed;
   opacity: 0.5;
-}
-
-.video-stack {
-  display: grid;
-  gap: 6px;
-}
-
-.video-stack a {
-  display: grid;
-  grid-template-columns: 16px minmax(0, 1fr);
-  gap: 8px;
-  align-items: center;
-  min-height: 34px;
-  border-color: var(--line);
-  padding: 7px 9px;
-  color: #dfe7e1;
-  font-size: 12px;
-  text-decoration: none;
 }
 
 .answer-thread {
