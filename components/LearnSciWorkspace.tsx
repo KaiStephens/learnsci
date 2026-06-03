@@ -16,14 +16,22 @@ import {
   Sparkles,
   Square,
   Trash2,
-  Wifi,
-  WifiOff,
+  Volume2,
+  WalletCards,
 } from "lucide-react";
-import { FormEvent, useCallback, useMemo, useRef, useState } from "react";
-import { useEffect } from "react";
+import {
+  FormEvent,
+  PointerEvent as ReactPointerEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { classroomScan, curriculum, getTopic, type CurriculumTopic } from "@/lib/curriculum";
+import type { TutorToolCall } from "@/lib/openrouter";
 
-type ConnectionState = "idle" | "connecting" | "connected" | "error";
+type SessionState = "idle" | "recording" | "thinking" | "error";
 
 type Message = {
   id: string;
@@ -57,44 +65,20 @@ export type Diagram = {
   edges?: DiagramEdge[];
 };
 
-type ToolResult =
-  | {
-      name: "draw_diagram";
-      arguments: Diagram;
-    }
-  | {
-      name: "highlight_topic";
-      arguments: { topicId: string; reason: string };
-    }
-  | {
-      name: "create_quiz_card";
-      arguments: { topicId: string; question: string; answer: string };
-    };
-
-type ServerEvent = {
-  type: string;
-  response?: {
-    output?: Array<{
-      type?: string;
-      name?: string;
-      arguments?: string;
-      call_id?: string;
-      content?: Array<{
-        type?: string;
-        text?: string;
-        transcript?: string;
-      }>;
-    }>;
-  };
-  delta?: string;
+type TutorResponse = {
   transcript?: string;
-  error?: {
-    message?: string;
+  assistant?: string;
+  toolCalls?: TutorToolCall[];
+  audio?: {
+    dataUrl: string;
+    mimeType: string;
   };
+  usage?: {
+    estimatedUsd: number;
+    requests: number;
+  };
+  error?: string;
 };
-
-type ClientEvent = Record<string, unknown>;
-type ResponseOutputItem = NonNullable<NonNullable<ServerEvent["response"]>["output"]>[number];
 
 function uid(prefix: string) {
   return `${prefix}-${crypto.randomUUID()}`;
@@ -104,357 +88,255 @@ function classNames(...values: Array<string | false | undefined>) {
   return values.filter(Boolean).join(" ");
 }
 
-function extractResponseText(event: ServerEvent) {
-  const chunks: string[] = [];
-
-  for (const item of event.response?.output ?? []) {
-    for (const part of item.content ?? []) {
-      if (part.text) chunks.push(part.text);
-      if (part.transcript) chunks.push(part.transcript);
-    }
-  }
-
-  return chunks.join("\n").trim();
-}
-
-function parseToolCall(item: ResponseOutputItem): ToolResult | null {
-  if (item.type !== "function_call" || !item.name || !item.arguments) {
-    return null;
-  }
-
-  try {
-    const parsed = JSON.parse(item.arguments) as ToolResult["arguments"];
-
-    if (item.name === "draw_diagram") {
-      return { name: "draw_diagram", arguments: parsed as Diagram };
-    }
-
-    if (item.name === "highlight_topic") {
-      return {
-        name: "highlight_topic",
-        arguments: parsed as { topicId: string; reason: string },
-      };
-    }
-
-    if (item.name === "create_quiz_card") {
-      return {
-        name: "create_quiz_card",
-        arguments: parsed as { topicId: string; question: string; answer: string },
-      };
-    }
-  } catch {
-    return null;
-  }
-
-  return null;
-}
-
 function topicProgress(topic: CurriculumTopic) {
   const completed = topic.items.filter((item) => item.status === "completed").length;
   return Math.round((completed / topic.items.length) * 100);
 }
 
+function preferredAudioMime() {
+  const options = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg"];
+  return options.find((option) => MediaRecorder.isTypeSupported(option)) ?? "";
+}
+
+function formatFromMime(mimeType: string) {
+  if (mimeType.includes("wav")) return "wav";
+  if (mimeType.includes("mpeg") || mimeType.includes("mp3")) return "mp3";
+  if (mimeType.includes("ogg")) return "ogg";
+  if (mimeType.includes("mp4")) return "mp4";
+  return "webm";
+}
+
+function blobToBase64(blob: Blob) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const result = String(reader.result ?? "");
+      resolve(result.includes(",") ? result.split(",")[1] : result);
+    };
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(blob);
+  });
+}
+
 export function LearnSciWorkspace() {
   const [selectedTopicId, setSelectedTopicId] = useState("culminating");
-  const [connectionState, setConnectionState] = useState<ConnectionState>("idle");
-  const [status, setStatus] = useState("Offline");
+  const [sessionState, setSessionState] = useState<SessionState>("idle");
+  const [status, setStatus] = useState("OpenRouter pipeline idle");
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "system-start",
       role: "system",
-      text: "Choose a unit, connect voice when ready, or type a question. The curriculum outline is sanitized from Classroom titles and topics.",
+      text: "Choose a unit, talk or type, and use the canvas while you study. The curriculum outline is sanitized from Classroom titles and topics.",
     },
   ]);
   const [input, setInput] = useState("");
-  const [liveDraft, setLiveDraft] = useState("");
   const [diagram, setDiagram] = useState<Diagram | null>(null);
   const [quizCards, setQuizCards] = useState<QuizCard[]>([]);
   const [strokeCount, setStrokeCount] = useState(0);
+  const [usageUsd, setUsageUsd] = useState(0);
 
-  const pcRef = useRef<RTCPeerConnection | null>(null);
-  const dataChannelRef = useRef<RTCDataChannel | null>(null);
-  const mediaStreamRef = useRef<MediaStream | null>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const startedAtRef = useRef(0);
+  const playerRef = useRef<HTMLAudioElement | null>(null);
 
   const selectedTopic = useMemo(() => getTopic(selectedTopicId), [selectedTopicId]);
 
   const addMessage = useCallback((role: Message["role"], text: string) => {
     if (!text.trim()) return;
-    setMessages((current) => [...current, { id: uid(role), role, text: text.trim() }].slice(-18));
+    setMessages((current) => [...current, { id: uid(role), role, text: text.trim() }].slice(-20));
   }, []);
 
-  const sendEvent = useCallback((event: ClientEvent) => {
-    const channel = dataChannelRef.current;
+  const boardSummary = useCallback(() => {
+    return [
+      `${strokeCount} freehand ink groups`,
+      diagram ? `AI diagram "${diagram.title}" with ${diagram.nodes.length} nodes` : "no AI diagram",
+      `active topic ${selectedTopic.name}`,
+    ].join("; ");
+  }, [diagram, selectedTopic.name, strokeCount]);
 
-    if (!channel || channel.readyState !== "open") {
-      setStatus("Realtime channel is not open");
-      return false;
-    }
-
-    channel.send(JSON.stringify(event));
-    return true;
+  const playAudio = useCallback((dataUrl?: string) => {
+    if (!dataUrl) return;
+    playerRef.current?.pause();
+    const audio = new Audio(dataUrl);
+    playerRef.current = audio;
+    void audio.play().catch(() => {
+      setStatus("Speech generated; browser blocked autoplay");
+    });
   }, []);
 
-  const stopSession = useCallback(() => {
-    dataChannelRef.current?.close();
-    pcRef.current?.close();
-    mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
-    audioRef.current?.remove();
-
-    dataChannelRef.current = null;
-    pcRef.current = null;
-    mediaStreamRef.current = null;
-    audioRef.current = null;
-    setConnectionState("idle");
-    setLiveDraft("");
-    setStatus("Offline");
-  }, []);
-
-  const handleToolCalls = useCallback(
-    (event: ServerEvent) => {
-      const calls = event.response?.output?.filter((item) => item.type === "function_call") ?? [];
-
-      for (const item of calls) {
-        const parsed = parseToolCall(item);
-
-        if (!parsed || !item.call_id) continue;
-
-        if (parsed.name === "draw_diagram") {
-          setDiagram(parsed.arguments);
+  const applyToolCalls = useCallback(
+    (toolCalls: TutorToolCall[] = []) => {
+      for (const toolCall of toolCalls) {
+        if (toolCall.name === "draw_diagram") {
+          setDiagram(toolCall.arguments);
         }
 
-        if (parsed.name === "highlight_topic") {
-          setSelectedTopicId(parsed.arguments.topicId);
+        if (toolCall.name === "highlight_topic") {
+          setSelectedTopicId(toolCall.arguments.topicId);
         }
 
-        if (parsed.name === "create_quiz_card") {
+        if (toolCall.name === "create_quiz_card") {
           setQuizCards((cards) => [
             {
               id: uid("quiz"),
-              topicId: parsed.arguments.topicId,
-              question: parsed.arguments.question,
-              answer: parsed.arguments.answer,
+              topicId: toolCall.arguments.topicId,
+              question: toolCall.arguments.question,
+              answer: toolCall.arguments.answer,
             },
             ...cards,
-          ].slice(0, 8));
+          ].slice(0, 10));
+        }
+      }
+    },
+    [],
+  );
+
+  const handleTutorResponse = useCallback(
+    (response: TutorResponse) => {
+      if (response.error) {
+        throw new Error(response.error);
+      }
+
+      if (response.transcript) {
+        addMessage("user", response.transcript);
+      }
+
+      if (response.assistant) {
+        addMessage("assistant", response.assistant);
+      }
+
+      applyToolCalls(response.toolCalls);
+      playAudio(response.audio?.dataUrl);
+
+      if (response.usage) {
+        setUsageUsd(response.usage.estimatedUsd);
+      }
+    },
+    [addMessage, applyToolCalls, playAudio],
+  );
+
+  const requestTutor = useCallback(
+    async (endpoint: "/api/tutor/chat" | "/api/tutor/voice", body: Record<string, unknown>) => {
+      setSessionState("thinking");
+      setStatus("Transcribe, reason, draw, speak");
+
+      try {
+        const response = await fetch(endpoint, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            topicId: selectedTopicId,
+            boardSummary: boardSummary(),
+            history: messages.map((message) => ({
+              role: message.role,
+              text: message.text,
+            })),
+            ...body,
+          }),
+        });
+
+        const json = (await response.json()) as TutorResponse;
+
+        if (!response.ok) {
+          throw new Error(json.error ?? "Tutor request failed");
         }
 
-        sendEvent({
-          type: "conversation.item.create",
-          item: {
-            type: "function_call_output",
-            call_id: item.call_id,
-            output: JSON.stringify({ ok: true, applied: parsed.name }),
-          },
-        });
-
-        sendEvent({
-          type: "response.create",
-          response: {
-            output_modalities: ["text", "audio"],
-          },
-        });
+        handleTutorResponse(json);
+        setSessionState("idle");
+        setStatus("OpenRouter pipeline idle");
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Tutor request failed";
+        setSessionState("error");
+        setStatus(message);
+        addMessage("system", message);
       }
     },
-    [sendEvent],
+    [addMessage, boardSummary, handleTutorResponse, messages, selectedTopicId],
   );
 
-  const handleServerEvent = useCallback(
-    (raw: MessageEvent<string>) => {
-      const event = JSON.parse(raw.data) as ServerEvent;
-
-      if (event.type === "session.created" || event.type === "session.updated") {
-        setStatus("Realtime ready");
-      }
-
-      if (event.type === "input_audio_buffer.speech_started") {
-        setStatus("Listening");
-      }
-
-      if (event.type === "response.created") {
-        setStatus("Thinking");
-        setLiveDraft("");
-      }
-
-      if (event.type === "response.output_text.delta" && event.delta) {
-        setLiveDraft((current) => current + event.delta);
-      }
-
-      if (event.type === "response.output_audio_transcript.delta" && event.delta) {
-        setLiveDraft((current) => current + event.delta);
-      }
-
-      if (event.type === "response.done") {
-        const text = extractResponseText(event) || liveDraft;
-        if (text) addMessage("assistant", text);
-        setLiveDraft("");
-        setStatus("Realtime ready");
-        handleToolCalls(event);
-      }
-
-      if (event.type === "error") {
-        setConnectionState("error");
-        setStatus(event.error?.message ?? "Realtime error");
-      }
-    },
-    [addMessage, handleToolCalls, liveDraft],
-  );
-
-  const startSession = useCallback(async () => {
-    if (connectionState === "connecting" || connectionState === "connected") return;
-
-    setConnectionState("connecting");
-    setStatus("Requesting short-lived Realtime key");
-
-    try {
-      const tokenResponse = await fetch("/api/realtime/session", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ topicId: selectedTopicId }),
-      });
-
-      const tokenData = (await tokenResponse.json()) as { value?: string; error?: string; detail?: string };
-
-      if (!tokenResponse.ok || !tokenData.value) {
-        throw new Error(tokenData.error ?? tokenData.detail ?? "Realtime token request failed");
-      }
-
-      setStatus("Opening microphone");
-
-      const pc = new RTCPeerConnection();
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const audio = document.createElement("audio");
-      audio.autoplay = true;
-
-      pc.ontrack = (event) => {
-        audio.srcObject = event.streams[0];
-      };
-
-      stream.getTracks().forEach((track) => pc.addTrack(track, stream));
-
-      const dataChannel = pc.createDataChannel("oai-events");
-      dataChannel.addEventListener("open", () => {
-        setConnectionState("connected");
-        setStatus("Realtime ready");
-        sendEvent({
-          type: "conversation.item.create",
-          item: {
-            type: "message",
-            role: "user",
-            content: [
-              {
-                type: "input_text",
-                text: `Start an exam review for ${selectedTopic.name}. Ask me one diagnostic question first.`,
-              },
-            ],
-          },
-        });
-        sendEvent({
-          type: "response.create",
-          response: {
-            output_modalities: ["text", "audio"],
-          },
-        });
-      });
-      dataChannel.addEventListener("message", handleServerEvent);
-      dataChannel.addEventListener("close", () => {
-        setConnectionState("idle");
-        setStatus("Offline");
-      });
-
-      pcRef.current = pc;
-      dataChannelRef.current = dataChannel;
-      mediaStreamRef.current = stream;
-      audioRef.current = audio;
-
-      const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
-
-      const sdpResponse = await fetch("https://api.openai.com/v1/realtime/calls", {
-        method: "POST",
-        body: offer.sdp,
-        headers: {
-          Authorization: `Bearer ${tokenData.value}`,
-          "Content-Type": "application/sdp",
-        },
-      });
-
-      if (!sdpResponse.ok) {
-        throw new Error(await sdpResponse.text());
-      }
-
-      await pc.setRemoteDescription({
-        type: "answer",
-        sdp: await sdpResponse.text(),
-      });
-
-      setStatus("Connecting media");
-    } catch (error) {
-      stopSession();
-      setConnectionState("error");
-      setStatus(error instanceof Error ? error.message : "Unable to start Realtime");
-    }
-  }, [connectionState, handleServerEvent, selectedTopic.name, selectedTopicId, sendEvent, stopSession]);
-
-  const sendText = useCallback(
-    (text: string) => {
-      const boardSummary = `Whiteboard summary: ${strokeCount} freehand stroke groups. AI diagram: ${
-        diagram ? `${diagram.title} with ${diagram.nodes.length} nodes` : "none"
-      }.`;
-
-      const sent = sendEvent({
-        type: "conversation.item.create",
-        item: {
-          type: "message",
-          role: "user",
-          content: [
-            {
-              type: "input_text",
-              text: `${text}\n\nActive topic: ${selectedTopic.name}.\n${boardSummary}`,
-            },
-          ],
-        },
-      });
-
-      if (sent) {
-        addMessage("user", text);
-        sendEvent({
-          type: "response.create",
-          response: {
-            output_modalities: ["text", "audio"],
-          },
-        });
-      }
-    },
-    [addMessage, diagram, selectedTopic.name, sendEvent, strokeCount],
-  );
-
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const submitText = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const value = input.trim();
-    if (!value) return;
-
-    if (connectionState !== "connected") {
-      addMessage(
-        "system",
-        "Connect Realtime first. The text box uses the same live session so GPT can use the whiteboard tools.",
-      );
-      return;
-    }
-
+    const message = input.trim();
+    if (!message || sessionState === "thinking") return;
     setInput("");
-    sendText(value);
+    void requestTutor("/api/tutor/chat", { message, speak: true });
   };
 
-  const askAboutBoard = () => {
-    if (connectionState !== "connected") {
-      addMessage("system", "Connect Realtime first, then I can send the whiteboard state to the tutor.");
+  const stopRecording = useCallback(() => {
+    const recorder = recorderRef.current;
+    if (!recorder || recorder.state === "inactive") return;
+    recorder.stop();
+  }, []);
+
+  const startRecording = useCallback(async () => {
+    if (sessionState === "recording") {
+      stopRecording();
       return;
     }
 
-    sendText("Look at the current whiteboard summary and help me improve the diagram or explain what is missing.");
+    if (sessionState === "thinking") return;
+
+    try {
+      const mimeType = preferredAudioMime();
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      chunksRef.current = [];
+      startedAtRef.current = Date.now();
+
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          chunksRef.current.push(event.data);
+        }
+      };
+
+      recorder.onstop = () => {
+        const durationMs = Date.now() - startedAtRef.current;
+        const blob = new Blob(chunksRef.current, {
+          type: recorder.mimeType || mimeType || "audio/webm",
+        });
+
+        stream.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
+        recorderRef.current = null;
+
+        if (blob.size < 1000) {
+          setSessionState("idle");
+          setStatus("Recording was too short");
+          return;
+        }
+
+        void blobToBase64(blob).then((audioBase64) =>
+          requestTutor("/api/tutor/voice", {
+            audioBase64,
+            audioFormat: formatFromMime(blob.type),
+            durationMs,
+          }),
+        );
+      };
+
+      streamRef.current = stream;
+      recorderRef.current = recorder;
+      recorder.start();
+      setSessionState("recording");
+      setStatus("Recording");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Microphone unavailable";
+      setSessionState("error");
+      setStatus(message);
+      addMessage("system", message);
+    }
+  }, [addMessage, requestTutor, sessionState, stopRecording]);
+
+  const askAboutBoard = () => {
+    if (sessionState === "thinking") return;
+    void requestTutor("/api/tutor/chat", {
+      message: "Use the current board state to improve the diagram or explain what I should add next.",
+      speak: true,
+    });
   };
 
   return (
@@ -505,16 +387,16 @@ export function LearnSciWorkspace() {
 
         <div className="connection-card">
           <div className="connection-state">
-            {connectionState === "connected" ? <Wifi size={16} /> : <WifiOff size={16} />}
-            <span>{status}</span>
+            <WalletCards size={16} />
+            <span>${usageUsd.toFixed(4)} / $10 local cap</span>
           </div>
           <button
-            className={classNames("primary-button", connectionState === "connected" && "danger-button")}
-            onClick={connectionState === "connected" ? stopSession : startSession}
+            className={classNames("primary-button", sessionState === "recording" && "danger-button")}
+            onClick={startRecording}
             type="button"
           >
-            {connectionState === "connected" ? <MicOff size={16} /> : <Mic size={16} />}
-            {connectionState === "connected" ? "Stop voice" : "Start voice"}
+            {sessionState === "recording" ? <MicOff size={16} /> : <Mic size={16} />}
+            {sessionState === "recording" ? "Stop and send" : "Talk"}
           </button>
         </div>
       </aside>
@@ -527,7 +409,7 @@ export function LearnSciWorkspace() {
           </div>
           <span className="model-pill">
             <Bot size={15} aria-hidden="true" />
-            gpt-realtime-2
+            OpenRouter
           </span>
         </header>
 
@@ -563,15 +445,21 @@ export function LearnSciWorkspace() {
         </div>
       </section>
 
-      <section className="studio-panel" aria-label="Realtime tutor and whiteboard">
+      <section className="studio-panel" aria-label="Tutor and whiteboard">
         <div className="tutor-card">
           <header className="panel-header">
             <div>
-              <p className="eyebrow">Realtime tutor</p>
-              <h2>Voice, text, diagrams</h2>
+              <p className="eyebrow">MAI voice loop</p>
+              <h2>Transcribe, tutor, speak</h2>
             </div>
-            <span className={classNames("status-dot", connectionState)} />
+            <span className={classNames("status-dot", sessionState)} />
           </header>
+
+          <div className="pipeline-strip" aria-label="Active model pipeline">
+            <span>microsoft/mai-transcribe-1.5</span>
+            <span>openai/gpt-5.4-mini</span>
+            <span>microsoft/mai-voice-2</span>
+          </div>
 
           <div className="message-log" aria-live="polite">
             {messages.map((message) => (
@@ -580,22 +468,23 @@ export function LearnSciWorkspace() {
                 <p>{message.text}</p>
               </div>
             ))}
-            {liveDraft ? (
+            {sessionState === "thinking" ? (
               <div className="message assistant live">
-                <span>assistant</span>
-                <p>{liveDraft}</p>
+                <span>system</span>
+                <p>{status}</p>
               </div>
             ) : null}
           </div>
 
-          <form className="composer" onSubmit={handleSubmit}>
+          <form className="composer" onSubmit={submitText}>
             <input
               aria-label="Ask LearnSci"
+              disabled={sessionState === "thinking" || sessionState === "recording"}
               onChange={(event) => setInput(event.target.value)}
               placeholder="Ask for a trace, quiz, UML sketch, or exam drill..."
               value={input}
             />
-            <button title="Send" type="submit">
+            <button disabled={sessionState === "thinking"} title="Send" type="submit">
               <Send size={16} aria-hidden="true" />
             </button>
           </form>
@@ -704,7 +593,7 @@ function Whiteboard({
     }
   }, [activeStroke, diagram, strokes]);
 
-  const pointerPosition = (event: React.PointerEvent<HTMLCanvasElement>): Point => {
+  const pointerPosition = (event: ReactPointerEvent<HTMLCanvasElement>): Point => {
     const rect = event.currentTarget.getBoundingClientRect();
     return {
       x: event.clientX - rect.left,
@@ -712,12 +601,12 @@ function Whiteboard({
     };
   };
 
-  const beginStroke = (event: React.PointerEvent<HTMLCanvasElement>) => {
+  const beginStroke = (event: ReactPointerEvent<HTMLCanvasElement>) => {
     event.currentTarget.setPointerCapture(event.pointerId);
     setActiveStroke({ id: uid("stroke"), points: [pointerPosition(event)] });
   };
 
-  const extendStroke = (event: React.PointerEvent<HTMLCanvasElement>) => {
+  const extendStroke = (event: ReactPointerEvent<HTMLCanvasElement>) => {
     if (!activeStroke) return;
     const point = pointerPosition(event);
     setActiveStroke((current) =>
@@ -753,7 +642,7 @@ function Whiteboard({
           <h2>Canvas notes</h2>
         </div>
         <div className="board-tools">
-          <button title="Pen">
+          <button title="Pen" type="button">
             <PenLine size={15} aria-hidden="true" />
           </button>
           <button onClick={onAskAboutBoard} title="Ask AI about board" type="button">
@@ -781,7 +670,10 @@ function Whiteboard({
           <Circle size={8} fill="currentColor" aria-hidden="true" />
           {strokes.length} ink groups
         </span>
-        <span>{diagram ? `${diagram.title} diagram` : "No AI diagram yet"}</span>
+        <span>
+          <Volume2 size={12} aria-hidden="true" />
+          {diagram ? `${diagram.title} diagram` : "No AI diagram yet"}
+        </span>
       </div>
     </div>
   );

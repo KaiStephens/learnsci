@@ -254,6 +254,12 @@ a {
   background: var(--surface-3);
 }
 
+.primary-button:disabled,
+.composer button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 .danger-button:hover {
   border-color: rgba(255, 155, 155, 0.42);
 }
@@ -432,12 +438,14 @@ a {
   box-shadow: 0 0 0 5px rgba(103, 113, 107, 0.1);
 }
 
-.status-dot.connected {
+.status-dot.connected,
+.status-dot.recording {
   background: var(--accent);
   box-shadow: 0 0 0 5px rgba(155, 231, 192, 0.1);
 }
 
-.status-dot.connecting {
+.status-dot.connecting,
+.status-dot.thinking {
   background: var(--warn);
   box-shadow: 0 0 0 5px rgba(255, 216, 155, 0.1);
 }
@@ -454,6 +462,26 @@ a {
   gap: 8px;
   overflow-y: auto;
   padding-right: 2px;
+}
+
+.pipeline-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.pipeline-strip span {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 7px 8px;
+  color: var(--muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 10px;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .message {
@@ -510,6 +538,11 @@ a {
 
 .composer input:focus-visible {
   border-color: rgba(155, 231, 192, 0.5);
+}
+
+.composer input:disabled {
+  color: var(--quiet);
+  cursor: not-allowed;
 }
 
 .composer button {
