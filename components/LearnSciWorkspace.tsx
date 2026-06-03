@@ -2,14 +2,15 @@
 
 import {
   BookOpen,
+  ChevronDown,
   ChevronRight,
   GraduationCap,
+  MessageCircle,
   Mic,
   MicOff,
-  Send,
-  Sparkles,
+  Video,
 } from "lucide-react";
-import { FormEvent, useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import {
   Box,
   Tldraw,
@@ -119,15 +120,6 @@ function blobToBase64(blob: Blob) {
     reader.onerror = () => reject(reader.error);
     reader.readAsDataURL(blob);
   });
-}
-
-function lessonQuestions(topic: CurriculumTopic, lesson: CurriculumItem) {
-  const firstSkill = lesson.skills[0] ?? topic.name;
-  return [
-    `Teach me ${lesson.title} from scratch.`,
-    `Quiz me on ${firstSkill}.`,
-    `Draw this lesson on the board.`,
-  ];
 }
 
 function initialPrompt(topic: CurriculumTopic, lesson: CurriculumItem) {
@@ -322,6 +314,7 @@ function drawDiagramOnTldraw(editor: Editor, diagram: Diagram) {
 
 export function LearnSciWorkspace() {
   const [selectedTopicId, setSelectedTopicId] = useState("culminating");
+  const [expandedTopicId, setExpandedTopicId] = useState("culminating");
   const [selectedLessonIndex, setSelectedLessonIndex] = useState(0);
   const [sessionState, setSessionState] = useState<SessionState>("idle");
   const [status, setStatus] = useState("Ready");
@@ -332,7 +325,6 @@ export function LearnSciWorkspace() {
       text: "Pick a lesson, draw, ask, or talk.",
     },
   ]);
-  const [input, setInput] = useState("");
   const [quizCards, setQuizCards] = useState<QuizCard[]>([]);
   const [canvasStats, setCanvasStats] = useState<CanvasStats>(EMPTY_CANVAS_STATS);
 
@@ -345,11 +337,8 @@ export function LearnSciWorkspace() {
 
   const selectedTopic = useMemo(() => getTopic(selectedTopicId), [selectedTopicId]);
   const selectedLesson = selectedTopic.items[selectedLessonIndex] ?? selectedTopic.items[0];
+  const selectedVideos = selectedLesson.videos ?? selectedTopic.videos ?? [];
   const latestAssistant = [...messages].reverse().find((message) => message.role === "assistant");
-  const questions = useMemo(
-    () => lessonQuestions(selectedTopic, selectedLesson),
-    [selectedLesson, selectedTopic],
-  );
 
   const updateCanvasStats = useCallback((editor = editorRef.current) => {
     if (!editor) return;
@@ -480,14 +469,6 @@ export function LearnSciWorkspace() {
     [requestTutor, sessionState],
   );
 
-  const submitText = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const message = input.trim();
-    if (!message) return;
-    setInput("");
-    sendPrompt(message);
-  };
-
   const stopRecording = useCallback(() => {
     const recorder = recorderRef.current;
     if (!recorder || recorder.state === "inactive") return;
@@ -555,10 +536,24 @@ export function LearnSciWorkspace() {
 
   const chooseTopic = (topicId: string) => {
     setSelectedTopicId(topicId);
+    setExpandedTopicId(topicId);
     setSelectedLessonIndex(0);
   };
 
-  const chooseLesson = (index: number) => {
+  const toggleTopic = (topicId: string) => {
+    if (expandedTopicId === topicId) {
+      setExpandedTopicId("");
+      return;
+    }
+
+    chooseTopic(topicId);
+  };
+
+  const chooseLesson = (topicId: string, index: number) => {
+    if (topicId !== selectedTopicId) {
+      setSelectedTopicId(topicId);
+      setExpandedTopicId(topicId);
+    }
     setSelectedLessonIndex(index);
   };
 
@@ -589,37 +584,53 @@ export function LearnSciWorkspace() {
 
           <div className="rail-section">
             <span className="rail-label">Units</span>
-            <nav className="unit-list" aria-label="Course units">
-              {curriculum.map((topic) => (
-                <button
-                  className={classNames("unit-button", topic.id === selectedTopicId && "active")}
-                  key={topic.id}
-                  onClick={() => chooseTopic(topic.id)}
-                  type="button"
-                >
-                  <span className="unit-dot" style={{ background: topic.accent }} />
-                  <span>{topic.name}</span>
-                </button>
-              ))}
-            </nav>
-          </div>
+            <nav className="unit-accordion" aria-label="Course units">
+              {curriculum.map((topic) => {
+                const isExpanded = topic.id === expandedTopicId;
+                const isSelected = topic.id === selectedTopicId;
 
-          <div className="rail-section lesson-queue">
-            <span className="rail-label">Lessons</span>
-            <div className="lesson-list">
-              {selectedTopic.items.map((lesson, index) => (
-                <button
-                  className={classNames("lesson-button", index === selectedLessonIndex && "active")}
-                  key={`${lesson.title}-${index}`}
-                  onClick={() => chooseLesson(index)}
-                  type="button"
-                >
-                  <BookOpen size={14} aria-hidden="true" />
-                  <span>{lesson.title}</span>
-                  <ChevronRight size={13} aria-hidden="true" />
-                </button>
-              ))}
-            </div>
+                return (
+                  <section
+                    className={classNames("unit-group", isSelected && "active")}
+                    key={topic.id}
+                  >
+                    <button
+                      aria-expanded={isExpanded}
+                      className="unit-button"
+                      onClick={() => toggleTopic(topic.id)}
+                      type="button"
+                    >
+                      <span className="unit-dot" style={{ background: topic.accent }} />
+                      <span>{topic.name}</span>
+                      {isExpanded ? (
+                        <ChevronDown size={14} aria-hidden="true" />
+                      ) : (
+                        <ChevronRight size={14} aria-hidden="true" />
+                      )}
+                    </button>
+
+                    {isExpanded ? (
+                      <div className="lesson-list" aria-label={`${topic.name} lessons`}>
+                        {topic.items.map((lesson, index) => (
+                          <button
+                            className={classNames(
+                              "lesson-button",
+                              isSelected && index === selectedLessonIndex && "active",
+                            )}
+                            key={`${topic.id}-${lesson.title}-${index}`}
+                            onClick={() => chooseLesson(topic.id, index)}
+                            type="button"
+                          >
+                            <BookOpen size={13} aria-hidden="true" />
+                            <span>{lesson.title}</span>
+                          </button>
+                        ))}
+                      </div>
+                    ) : null}
+                  </section>
+                );
+              })}
+            </nav>
           </div>
 
           <section className="lesson-context" aria-label="Selected lesson">
@@ -641,23 +652,21 @@ export function LearnSciWorkspace() {
             </button>
           </section>
 
-          <section className="prompt-stack" aria-label="Practice prompts">
-            {questions.map((question) => (
-              <button
-                disabled={sessionState === "thinking"}
-                key={question}
-                onClick={() => sendPrompt(question)}
-                type="button"
-              >
-                <Sparkles size={14} aria-hidden="true" />
-                <span>{question}</span>
-              </button>
-            ))}
-          </section>
+          {selectedVideos.length ? (
+            <section className="video-stack" aria-label="YouTube videos">
+              <span className="rail-label">Videos</span>
+              {selectedVideos.map((video) => (
+                <a href={video.url} key={video.url} rel="noreferrer" target="_blank">
+                  <Video size={14} aria-hidden="true" />
+                  <span>{video.title}</span>
+                </a>
+              ))}
+            </section>
+          ) : null}
 
           <section className="answer-thread" aria-live="polite">
             <span>{status}</span>
-            <p>{latestAssistant?.text ?? "Ask a question or let the tutor draw into tldraw."}</p>
+            <p>{latestAssistant?.text ?? "Click the bubble and talk. The tutor can draw here."}</p>
             {quizCards.length ? (
               <details className="review-card">
                 <summary>{quizCards[0].question}</summary>
@@ -665,31 +674,6 @@ export function LearnSciWorkspace() {
               </details>
             ) : null}
           </section>
-        </div>
-
-        <form className="ask-bar" onSubmit={submitText}>
-          <input
-            aria-label="Ask LearnSci"
-            disabled={sessionState === "thinking" || sessionState === "recording"}
-            onChange={(event) => setInput(event.target.value)}
-            placeholder="Ask about this lesson..."
-            value={input}
-          />
-          <button disabled={sessionState === "thinking"} title="Send" type="submit">
-            <Send size={16} aria-hidden="true" />
-          </button>
-        </form>
-
-        <div className="rail-footer">
-          <button
-            className={classNames("talk-button", sessionState === "recording" && "recording")}
-            onClick={startRecording}
-            type="button"
-          >
-            {sessionState === "recording" ? <MicOff size={17} /> : <Mic size={17} />}
-            {sessionState === "recording" ? "Stop" : "Talk"}
-          </button>
-          <span>{canvasStats.shapeCount} shapes</span>
         </div>
       </aside>
 
@@ -701,6 +685,32 @@ export function LearnSciWorkspace() {
           persistenceKey="learnsci-study-canvas"
         />
       </section>
+
+      <button
+        aria-label={sessionState === "recording" ? "Stop talking to LearnSci" : "Talk to LearnSci"}
+        className={classNames(
+          "voice-bubble",
+          sessionState === "recording" && "recording",
+          sessionState === "thinking" && "thinking",
+          sessionState === "error" && "error",
+        )}
+        disabled={sessionState === "thinking"}
+        onClick={startRecording}
+        type="button"
+      >
+        <span className="voice-icon">
+          {sessionState === "recording" ? (
+            <MicOff size={22} aria-hidden="true" />
+          ) : sessionState === "idle" ? (
+            <MessageCircle size={22} aria-hidden="true" />
+          ) : (
+            <Mic size={22} aria-hidden="true" />
+          )}
+        </span>
+        <span className="voice-copy">
+          {sessionState === "recording" ? "Listening" : sessionState === "thinking" ? "Thinking" : "Talk"}
+        </span>
+      </button>
     </main>
   );
 }

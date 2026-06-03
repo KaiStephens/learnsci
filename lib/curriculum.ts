@@ -8,6 +8,12 @@ export type CurriculumItem = {
   status?: "completed" | "upcoming" | "reference";
   skills: string[];
   reviewPrompt: string;
+  videos?: CurriculumVideo[];
+};
+
+export type CurriculumVideo = {
+  title: string;
+  url: string;
 };
 
 export type CurriculumTopic = {
@@ -16,6 +22,7 @@ export type CurriculumTopic = {
   accent: string;
   objective: string;
   examWeight: "Core" | "High" | "Medium" | "Project";
+  videos?: CurriculumVideo[];
   items: CurriculumItem[];
   checkpoints: string[];
 };
@@ -42,6 +49,12 @@ export const curriculum: CurriculumTopic[] = [
       "Connect commits to specific product improvements.",
       "Prepare answers for architecture, testing, and next steps.",
     ],
+    videos: [
+      {
+        title: "Project presentation review",
+        url: "https://www.youtube.com/results?search_query=computer+science+project+presentation+demo+review",
+      },
+    ],
     items: [
       {
         title: "Culminating Project Marking and Conference Prep",
@@ -52,6 +65,12 @@ export const curriculum: CurriculumTopic[] = [
         skills: ["demo planning", "rubric mapping", "conference answers"],
         reviewPrompt:
           "Build a final defense: what changed, why it matters, and how the code proves it.",
+        videos: [
+          {
+            title: "Project presentation review",
+            url: "https://www.youtube.com/results?search_query=computer+science+project+presentation+demo+review",
+          },
+        ],
       },
       {
         title: "Culminating Project Plan",
@@ -86,6 +105,12 @@ export const curriculum: CurriculumTopic[] = [
       "Describe the draw loop, input handling, and collision/update order.",
       "Use small classes for screens, sprites, tickets, or UI entities.",
       "Debug visual code by logging state before changing rendering.",
+    ],
+    videos: [
+      {
+        title: "Java graphics and GUI review",
+        url: "https://www.youtube.com/results?search_query=java+swing+graphics+paintcomponent+repaint",
+      },
     ],
     items: [
       {
@@ -136,6 +161,12 @@ export const curriculum: CurriculumTopic[] = [
         skills: ["drawing APIs", "panels", "repaint"],
         reviewPrompt:
           "Summarize the minimum setup needed to draw and refresh a Java graphics view.",
+        videos: [
+          {
+            title: "Java Swing graphics review",
+            url: "https://www.youtube.com/results?search_query=java+swing+graphics+paintcomponent+repaint",
+          },
+        ],
       },
     ],
   },
@@ -152,6 +183,12 @@ export const curriculum: CurriculumTopic[] = [
       "Contrast inheritance, interfaces, overriding, and overloading.",
       "Draw a UML diagram from a written class relationship.",
       "Use Comparable to sort objects by a meaningful attribute.",
+    ],
+    videos: [
+      {
+        title: "Java OOP and UML review",
+        url: "https://www.youtube.com/results?search_query=java+oop+uml+class+diagram+tutorial",
+      },
     ],
     items: [
       {
@@ -227,6 +264,12 @@ export const curriculum: CurriculumTopic[] = [
         skills: ["UML notation", "design"],
         reviewPrompt:
           "Map a code snippet into UML notation and explain each relationship.",
+        videos: [
+          {
+            title: "UML class diagrams in Java",
+            url: "https://www.youtube.com/results?search_query=java+oop+uml+class+diagram+tutorial",
+          },
+        ],
       },
       {
         title: "OOP Encapsulation",
@@ -288,6 +331,12 @@ export const curriculum: CurriculumTopic[] = [
       "Represent grid problems with rows, columns, bounds, and visited state.",
       "Explain recursion or stack behavior in maze traversal.",
     ],
+    videos: [
+      {
+        title: "Sorting, searching, and maze review",
+        url: "https://www.youtube.com/results?search_query=java+sorting+searching+maze+algorithm+review",
+      },
+    ],
     items: [
       {
         title: "Practice Test",
@@ -297,6 +346,12 @@ export const curriculum: CurriculumTopic[] = [
         skills: ["sorting", "searching", "2D arrays"],
         reviewPrompt:
           "Run timed questions on trace tables, binary search, and nested loops.",
+        videos: [
+          {
+            title: "Sorting and searching review",
+            url: "https://www.youtube.com/results?search_query=java+sorting+searching+algorithms+review",
+          },
+        ],
       },
       {
         title: "2D String Array Sorting and Searching (Unit Task)",
@@ -398,6 +453,12 @@ export const curriculum: CurriculumTopic[] = [
       "Predict the return order using a call stack sketch.",
       "Know when iteration is simpler than recursion.",
     ],
+    videos: [
+      {
+        title: "Recursion call stack review",
+        url: "https://www.youtube.com/results?search_query=java+recursion+call+stack+review",
+      },
+    ],
     items: [
       {
         title: "Recursion Multiple Choice Questions",
@@ -426,6 +487,12 @@ export const curriculum: CurriculumTopic[] = [
         skills: ["definition", "call stack", "self-similar problems"],
         reviewPrompt:
           "Explain recursion using the smallest possible example, then draw the stack.",
+        videos: [
+          {
+            title: "Recursion call stack review",
+            url: "https://www.youtube.com/results?search_query=java+recursion+call+stack+review",
+          },
+        ],
       },
     ],
   },
@@ -442,6 +509,12 @@ export const curriculum: CurriculumTopic[] = [
       "Trace nested loops over 2D arrays.",
       "Explain comments, naming, and small-method structure.",
     ],
+    videos: [
+      {
+        title: "Java arrays and loops review",
+        url: "https://www.youtube.com/results?search_query=java+arrays+loops+2d+arrays+review",
+      },
+    ],
     items: [
       {
         title: "Quiz on Arrays Review",
@@ -451,6 +524,12 @@ export const curriculum: CurriculumTopic[] = [
         skills: ["arrays", "quiz prep"],
         reviewPrompt:
           "Ask quick questions on array indexing, length, and common off-by-one errors.",
+        videos: [
+          {
+            title: "Java arrays review",
+            url: "https://www.youtube.com/results?search_query=java+arrays+loops+2d+arrays+review",
+          },
+        ],
       },
       {
         title: "2D Array Summative Task",
