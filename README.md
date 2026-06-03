@@ -24,16 +24,11 @@ Put one OpenRouter key in `.env.local`:
 
 ```bash
 OPENROUTER_API_KEY=sk-or-v1-...
-LEARNSCI_MAX_USD=10
 ```
 
 `OPENAI_API_KEY` is also accepted as a local alias for compatibility, but the Microsoft MAI models are OpenRouter models, so an OpenRouter key is the correct key.
 
 The browser never receives the API key. Voice turns go through `app/api/tutor/voice/route.ts`; typed turns go through `app/api/tutor/chat/route.ts`.
-
-## Budget Guard
-
-The server keeps an in-memory local estimate and stops requests once the session estimate reaches `LEARNSCI_MAX_USD` (default `$10`). OpenRouter remains the source of truth for billing; this is an app-side safety rail, not a billing limit on your account.
 
 ## Curriculum Privacy
 

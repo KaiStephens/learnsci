@@ -50,12 +50,6 @@ type ChatCompletion = {
       tool_calls?: ChatToolCall[];
     };
   }>;
-  usage?: {
-    cost?: number;
-    prompt_tokens?: number;
-    completion_tokens?: number;
-    total_tokens?: number;
-  };
   error?: {
     message?: string;
   };
@@ -63,23 +57,10 @@ type ChatCompletion = {
 
 type TranscriptionResult = {
   text?: string;
-  usage?: {
-    cost?: number;
-    seconds?: number;
-  };
   error?: {
     message?: string;
   };
 };
-
-declare global {
-  var learnSciOpenRouterUsage:
-    | {
-        estimatedUsd: number;
-        requests: number;
-      }
-    | undefined;
-}
 
 export const openRouterDefaults = {
   baseUrl: "https://openrouter.ai/api/v1",
@@ -89,7 +70,6 @@ export const openRouterDefaults = {
   transcribeModel: "microsoft/mai-transcribe-1.5",
   speechModel: "microsoft/mai-voice-2",
   voice: "en-US-Harper:MAI-Voice-2",
-  maxUsd: 10,
 };
 
 export function getOpenRouterConfig() {
@@ -101,7 +81,6 @@ export function getOpenRouterConfig() {
       process.env.LEARNSCI_TRANSCRIBE_MODEL ?? openRouterDefaults.transcribeModel,
     speechModel: process.env.LEARNSCI_SPEECH_MODEL ?? openRouterDefaults.speechModel,
     voice: process.env.LEARNSCI_SPEECH_VOICE ?? openRouterDefaults.voice,
-    maxUsd: Number(process.env.LEARNSCI_MAX_USD ?? openRouterDefaults.maxUsd),
   };
 }
 
@@ -117,15 +96,6 @@ export function requireOpenRouterKey() {
   return config as ReturnType<typeof getOpenRouterConfig> & { apiKey: string };
 }
 
-export function getUsageLedger() {
-  globalThis.learnSciOpenRouterUsage ??= {
-    estimatedUsd: 0,
-    requests: 0,
-  };
-
-  return globalThis.learnSciOpenRouterUsage;
-}
-
 function headers(apiKey: string) {
   return {
     Authorization: `Bearer ${apiKey}`,
@@ -133,27 +103,6 @@ function headers(apiKey: string) {
     "HTTP-Referer": openRouterDefaults.referer,
     "X-Title": openRouterDefaults.appTitle,
   };
-}
-
-function estimateTokens(text: string) {
-  return Math.ceil(text.length / 4);
-}
-
-function reserveBudget(estimatedUsd: number, maxUsd: number) {
-  const ledger = getUsageLedger();
-
-  if (ledger.estimatedUsd + estimatedUsd > maxUsd) {
-    throw new Error(
-      `Local LearnSci budget guard stopped this request. Estimated session usage would exceed $${maxUsd.toFixed(2)}.`,
-    );
-  }
-}
-
-function recordUsage(estimatedUsd: number) {
-  const ledger = getUsageLedger();
-  ledger.estimatedUsd += Math.max(0, estimatedUsd);
-  ledger.requests += 1;
-  return ledger;
 }
 
 export const tutorTools = [
@@ -354,8 +303,6 @@ function parseToolCalls(toolCalls: ChatToolCall[] = []): TutorToolCall[] {
 
 async function postChat(messages: ChatMessage[], toolChoice: "auto" | "none") {
   const config = requireOpenRouterKey();
-  const promptText = messages.map((message) => message.content ?? "").join("\n");
-  reserveBudget(estimateTokens(promptText) * 0.00000075 + 900 * 0.0000045, config.maxUsd);
 
   const response = await fetch(`${config.baseUrl}/chat/completions`, {
     method: "POST",
@@ -381,12 +328,6 @@ async function postChat(messages: ChatMessage[], toolChoice: "auto" | "none") {
   if (!response.ok || json.error) {
     throw new Error(json.error?.message ?? `OpenRouter chat failed with ${response.status}`);
   }
-
-  const usageCost =
-    json.usage?.cost ??
-    (json.usage?.prompt_tokens ?? estimateTokens(promptText)) * 0.00000075 +
-      (json.usage?.completion_tokens ?? 0) * 0.0000045;
-  recordUsage(usageCost);
 
   return json;
 }
@@ -442,8 +383,6 @@ export async function transcribeAudio(input: {
   durationMs?: number;
 }) {
   const config = requireOpenRouterKey();
-  const estimated = ((input.durationMs ?? 15000) / 1000 / 3600) * 0.36;
-  reserveBudget(estimated, config.maxUsd);
 
   const response = await fetch(`${config.baseUrl}/audio/transcriptions`, {
     method: "POST",
@@ -464,15 +403,12 @@ export async function transcribeAudio(input: {
     throw new Error(json.error?.message ?? `OpenRouter transcription failed with ${response.status}`);
   }
 
-  recordUsage(json.usage?.cost ?? estimated);
   return json.text?.trim() ?? "";
 }
 
 export async function synthesizeSpeech(text: string) {
   const config = requireOpenRouterKey();
   const trimmed = text.trim();
-  const estimated = trimmed.length * 0.000022;
-  reserveBudget(estimated, config.maxUsd);
 
   const response = await fetch(`${config.baseUrl}/audio/speech`, {
     method: "POST",
@@ -492,7 +428,6 @@ export async function synthesizeSpeech(text: string) {
 
   const mimeType = response.headers.get("content-type") ?? "audio/mpeg";
   const bytes = Buffer.from(await response.arrayBuffer());
-  recordUsage(estimated);
 
   return {
     dataUrl: `data:${mimeType};base64,${bytes.toString("base64")}`,

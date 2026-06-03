@@ -17,7 +17,6 @@ import {
   Square,
   Trash2,
   Volume2,
-  WalletCards,
 } from "lucide-react";
 import {
   FormEvent,
@@ -72,10 +71,6 @@ type TutorResponse = {
   audio?: {
     dataUrl: string;
     mimeType: string;
-  };
-  usage?: {
-    estimatedUsd: number;
-    requests: number;
   };
   error?: string;
 };
@@ -133,7 +128,6 @@ export function LearnSciWorkspace() {
   const [diagram, setDiagram] = useState<Diagram | null>(null);
   const [quizCards, setQuizCards] = useState<QuizCard[]>([]);
   const [strokeCount, setStrokeCount] = useState(0);
-  const [usageUsd, setUsageUsd] = useState(0);
 
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -210,9 +204,6 @@ export function LearnSciWorkspace() {
       applyToolCalls(response.toolCalls);
       playAudio(response.audio?.dataUrl);
 
-      if (response.usage) {
-        setUsageUsd(response.usage.estimatedUsd);
-      }
     },
     [addMessage, applyToolCalls, playAudio],
   );
@@ -386,10 +377,6 @@ export function LearnSciWorkspace() {
         </nav>
 
         <div className="connection-card">
-          <div className="connection-state">
-            <WalletCards size={16} />
-            <span>${usageUsd.toFixed(4)} / $10 local cap</span>
-          </div>
           <button
             className={classNames("primary-button", sessionState === "recording" && "danger-button")}
             onClick={startRecording}

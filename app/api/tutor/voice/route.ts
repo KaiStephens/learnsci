@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import {
-  getUsageLedger,
   runTutorTurn,
   synthesizeSpeech,
   transcribeAudio,
@@ -57,7 +56,6 @@ export async function POST(request: Request) {
       assistant: turn.text,
       toolCalls: turn.toolCalls,
       audio,
-      usage: getUsageLedger(),
     });
   } catch (error) {
     return NextResponse.json(
