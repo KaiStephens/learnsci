@@ -136,7 +136,7 @@ export const tutorTools = [
     function: {
       name: "draw_canvas",
       description:
-        "Draw any editable tldraw-style visual on the learner's board using explicit coordinates. Use this for arrays, tables, UML, recursion stacks, sorting traces, search ranges, mazes, timelines, code annotations, UI sketches, game loops, or any custom visual. Keep boxes large enough for text, leave generous spacing, and route arrows through empty space so labels do not cover shapes.",
+        "Draw any editable tldraw-style visual on the learner's board using explicit coordinates. Use this for arrays, tables, UML, recursion stacks, sorting traces, search ranges, mazes, timelines, code annotations, UI sketches, game loops, or any custom visual. Never overlap elements. Keep boxes large enough for text, leave generous spacing, use real newline characters in code text, and route arrows through empty space so labels do not cover shapes.",
       parameters: {
         type: "object",
         properties: {
@@ -284,7 +284,8 @@ Outcome:
 - Prefer diagrams and trace tables for OOP, arrays, sorting/searching, recursion, mazes, and game loops.
 - When a visual would help, call draw_canvas. The frontend turns that tool call into editable tldraw shapes.
 - draw_canvas is not a preset diagram tool. You can draw any arrangement of boxes, text, code blocks, diamonds, ellipses, and arrows.
-- For draw_canvas, use explicit coordinates with wide spacing. Put boxes at least 80 px apart, make code boxes wide, keep arrow labels short, and avoid drawing arrow labels over nodes.
+- For draw_canvas, use explicit coordinates with wide spacing. Put independent boxes at least 120 px apart, make code boxes wide, use real newline characters in code blocks, keep arrow labels short, and avoid drawing arrow labels over nodes.
+- If drawing a grid/table, make each cell large enough for its text and keep row/column labels outside the grid with at least 60 px of clearance.
 - Keep spoken answers brief: normally 2-5 sentences.
 - Do not claim access to private Classroom attachments. Work from the sanitized curriculum outline.
 - If the learner asks for a diagram, call draw_canvas and still give a short spoken explanation.

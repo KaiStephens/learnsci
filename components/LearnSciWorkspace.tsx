@@ -64,6 +64,14 @@ export type Diagram = {
 type CanvasDrawing = Extract<TutorToolCall, { name: "draw_canvas" }>["arguments"];
 type CanvasElement = CanvasDrawing["elements"][number];
 type CanvasArrow = NonNullable<CanvasDrawing["arrows"]>[number];
+type CanvasBounds = {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  cx: number;
+  cy: number;
+};
 
 type TutorResponse = {
   transcript?: string;
@@ -246,16 +254,26 @@ function sizeForCanvas(size?: CanvasElement["size"]): TLGeoShape["props"]["size"
   return "m";
 }
 
+function normalizeCanvasText(text: string) {
+  return text
+    .replace(/\\n/g, "\n")
+    .replace(/\\t/g, "  ")
+    .replace(/\s+\n/g, "\n")
+    .trim();
+}
+
 function estimateElementSize(element: CanvasElement) {
-  const lineCount = Math.max(1, element.text.split("\n").length);
-  const longestLine = Math.max(...element.text.split("\n").map((line) => line.length), 8);
-  const sizeFactor = element.size === "xl" ? 16 : element.size === "l" ? 14 : element.size === "s" ? 9 : 11;
-  const minWidth = element.type === "code" ? 300 : element.type === "text" ? 180 : 210;
-  const minHeight = element.type === "text" ? 44 : 82;
+  const text = normalizeCanvasText(element.text);
+  const lines = text.split("\n");
+  const lineCount = Math.max(1, lines.length);
+  const longestLine = Math.max(...lines.map((line) => line.length), 8);
+  const sizeFactor = element.size === "xl" ? 20 : element.size === "l" ? 17 : element.size === "s" ? 11 : 14;
+  const minWidth = element.type === "code" ? 440 : element.type === "text" ? 220 : 250;
+  const minHeight = element.type === "text" ? 58 : 96;
 
   return {
-    w: Math.max(element.w ?? 0, minWidth, longestLine * sizeFactor),
-    h: Math.max(element.h ?? 0, minHeight, lineCount * 30 + 38),
+    w: Math.max(element.w ?? 0, minWidth, longestLine * sizeFactor + 48),
+    h: Math.max(element.h ?? 0, minHeight, lineCount * 34 + 48),
   };
 }
 
@@ -265,7 +283,7 @@ function elementGeometry(type: CanvasElement["type"]): TLGeoShape["props"]["geo"
   return "rectangle";
 }
 
-function canvasElementBounds(element: CanvasElement) {
+function canvasElementBounds(element: CanvasElement): CanvasBounds {
   const { w, h } = estimateElementSize(element);
   return {
     x: element.x,
@@ -277,10 +295,74 @@ function canvasElementBounds(element: CanvasElement) {
   };
 }
 
-function connectionPoint(
-  element: ReturnType<typeof canvasElementBounds>,
-  target: { x: number; y: number },
-) {
+function boundsFromRect(x: number, y: number, w: number, h: number): CanvasBounds {
+  return {
+    x,
+    y,
+    w,
+    h,
+    cx: x + w / 2,
+    cy: y + h / 2,
+  };
+}
+
+function rectsOverlap(a: CanvasBounds, b: CanvasBounds, padding = 0) {
+  return !(
+    a.x + a.w + padding <= b.x ||
+    b.x + b.w + padding <= a.x ||
+    a.y + a.h + padding <= b.y ||
+    b.y + b.h + padding <= a.y
+  );
+}
+
+function intersectionArea(a: CanvasBounds, b: CanvasBounds, padding = 0) {
+  const overlapW = Math.max(
+    0,
+    Math.min(a.x + a.w + padding, b.x + b.w + padding) - Math.max(a.x - padding, b.x - padding),
+  );
+  const overlapH = Math.max(
+    0,
+    Math.min(a.y + a.h + padding, b.y + b.h + padding) - Math.max(a.y - padding, b.y - padding),
+  );
+  return overlapW * overlapH;
+}
+
+function shiftedBounds(bounds: CanvasBounds, dx: number, dy: number): CanvasBounds {
+  return boundsFromRect(bounds.x + dx, bounds.y + dy, bounds.w, bounds.h);
+}
+
+function resolveElementOverlaps(boundsById: Map<string, CanvasBounds>) {
+  const entries = [...boundsById.entries()].sort(([, a], [, b]) => a.y - b.y || a.x - b.x);
+  const padding = 18;
+
+  for (let pass = 0; pass < 18; pass += 1) {
+    let changed = false;
+
+    for (let i = 0; i < entries.length; i += 1) {
+      for (let j = i + 1; j < entries.length; j += 1) {
+        const [, a] = entries[i];
+        const [idB, b] = entries[j];
+        if (!rectsOverlap(a, b, 0)) continue;
+
+        const overlapX = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x);
+        const overlapY = Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y);
+        const moveRight = b.cx >= a.cx ? 1 : -1;
+        const moveDown = b.cy >= a.cy ? 1 : -1;
+        const dx = overlapX <= overlapY ? moveRight * (overlapX + padding) : 0;
+        const dy = overlapY < overlapX ? moveDown * (overlapY + padding) : 0;
+        const next = shiftedBounds(b, dx, dy);
+
+        entries[j][1] = next;
+        boundsById.set(idB, next);
+        changed = true;
+      }
+    }
+
+    if (!changed) break;
+  }
+}
+
+function connectionPoint(element: CanvasBounds, target: { x: number; y: number }) {
   const dx = target.x - element.cx;
   const dy = target.y - element.cy;
 
@@ -305,16 +387,62 @@ function zoomToGeneratedBounds(editor: Editor, bounds: Box) {
   });
 }
 
+function arrowLabelBounds(text: string, x: number, y: number) {
+  const normalized = normalizeCanvasText(text);
+  const longestLine = Math.max(...normalized.split("\n").map((line) => line.length), 8);
+  const w = Math.max(96, Math.min(260, longestLine * 13 + 30));
+  const h = Math.max(42, normalized.split("\n").length * 30 + 16);
+  return boundsFromRect(x - w / 2, y - h / 2, w, h);
+}
+
+function labelOverlapScore(bounds: CanvasBounds, occupied: CanvasBounds[]) {
+  return occupied.reduce((score, item) => score + intersectionArea(bounds, item, 14), 0);
+}
+
+function placeArrowLabel(
+  text: string,
+  start: { x: number; y: number },
+  end: { x: number; y: number },
+  occupied: CanvasBounds[],
+) {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  const length = Math.max(Math.hypot(dx, dy), 1);
+  const normal = { x: -dy / length, y: dx / length };
+  const along = { x: dx / length, y: dy / length };
+  const candidates: CanvasBounds[] = [];
+
+  for (const t of [0.5, 0.35, 0.65, 0.2, 0.8]) {
+    for (const offset of [54, -54, 88, -88, 124, -124]) {
+      const baseX = start.x + dx * t;
+      const baseY = start.y + dy * t;
+      candidates.push(
+        arrowLabelBounds(
+          text,
+          baseX + normal.x * offset + along.x * 12,
+          baseY + normal.y * offset + along.y * 12,
+        ),
+      );
+    }
+  }
+
+  return candidates.find((candidate) => labelOverlapScore(candidate, occupied) === 0)
+    ?? candidates.sort((a, b) => labelOverlapScore(a, occupied) - labelOverlapScore(b, occupied))[0]
+    ?? arrowLabelBounds(text, (start.x + end.x) / 2, (start.y + end.y) / 2);
+}
+
 function drawCanvasOnTldraw(editor: Editor, drawing: CanvasDrawing) {
-  const elementBounds = new Map<string, ReturnType<typeof canvasElementBounds>>();
+  const elementBounds = new Map<string, CanvasBounds>();
   drawing.elements.forEach((element) => {
     elementBounds.set(element.id, canvasElementBounds(element));
   });
+  resolveElementOverlaps(elementBounds);
 
   const arrowShapes: TLCreateShapePartial<TLShape>[] = [];
   const nodeShapes: TLCreateShapePartial<TLShape>[] = [];
   const labelShapes: TLCreateShapePartial<TLShape>[] = [];
   const allBounds: Box[] = [];
+  const occupiedBounds: CanvasBounds[] = [...elementBounds.values()];
 
   if (drawing.title) {
     const titleShape = {
@@ -375,29 +503,24 @@ function drawCanvasOnTldraw(editor: Editor, drawing: CanvasDrawing) {
     );
 
     if (arrow.label) {
-      const midX = (start.x + end.x) / 2;
-      const midY = (start.y + end.y) / 2;
-      const dx = end.x - start.x;
-      const dy = end.y - start.y;
-      const length = Math.max(Math.hypot(dx, dy), 1);
-      const offsetX = (-dy / length) * 20;
-      const offsetY = (dx / length) * 20;
+      const labelBounds = placeArrowLabel(arrow.label, start, end, occupiedBounds);
+      occupiedBounds.push(labelBounds);
 
       labelShapes.push({
         id: createShapeId(`canvas-label-${Date.now()}-${labelShapes.length}`),
         type: "text",
-        x: midX + offsetX - 80,
-        y: midY + offsetY - 20,
+        x: labelBounds.x,
+        y: labelBounds.y,
         props: {
-          richText: toRichText(arrow.label),
+          richText: toRichText(normalizeCanvasText(arrow.label)),
           autoSize: false,
-          w: 160,
+          w: labelBounds.w,
           size: "m",
           color,
           font: "draw",
         },
       } satisfies TLCreateShapePartial<TLTextShape>);
-      allBounds.push(new Box(midX + offsetX - 80, midY + offsetY - 20, 160, 44));
+      allBounds.push(new Box(labelBounds.x, labelBounds.y, labelBounds.w, labelBounds.h));
     }
   }
 
@@ -414,7 +537,7 @@ function drawCanvasOnTldraw(editor: Editor, drawing: CanvasDrawing) {
         x: bounds.x,
         y: bounds.y,
         props: {
-          richText: toRichText(element.text),
+          richText: toRichText(normalizeCanvasText(element.text)),
           autoSize: false,
           w: bounds.w,
           size: sizeForCanvas(element.size),
@@ -432,7 +555,7 @@ function drawCanvasOnTldraw(editor: Editor, drawing: CanvasDrawing) {
           geo: elementGeometry(element.type),
           w: bounds.w,
           h: bounds.h,
-          richText: toRichText(element.text),
+          richText: toRichText(normalizeCanvasText(element.text)),
           color,
           labelColor: "black",
           fill: element.type === "code" ? "none" : "semi",
