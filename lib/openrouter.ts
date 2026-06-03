@@ -111,7 +111,7 @@ export const tutorTools = [
     function: {
       name: "draw_diagram",
       description:
-        "Draw a simple study diagram on the LearnSci whiteboard. Use for UML, recursion stacks, array grids, sorting passes, search ranges, game loops, and maze traversal.",
+        "Draw a simple study diagram on the learner's tldraw board. Use for UML, recursion stacks, array grids, sorting passes, search ranges, game loops, and maze traversal.",
       parameters: {
         type: "object",
         properties: {
@@ -227,6 +227,7 @@ Outcome:
 - Ask short diagnostic questions, then teach only what is needed.
 - Use Java examples for programming concepts.
 - Prefer diagrams and trace tables for OOP, arrays, sorting/searching, recursion, mazes, and game loops.
+- When a visual would help, call draw_diagram. The frontend turns that tool call into editable tldraw shapes.
 - Keep spoken answers brief: normally 2-5 sentences.
 - Do not claim access to private Classroom attachments. Work from the sanitized curriculum outline.
 - If the learner asks for a diagram, call draw_diagram and still give a short spoken explanation.
