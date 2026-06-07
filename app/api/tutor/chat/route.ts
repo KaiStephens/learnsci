@@ -10,6 +10,8 @@ export const dynamic = "force-dynamic";
 
 type ChatRequest = {
   topicId?: string;
+  subjectName?: string;
+  curriculumContext?: string;
   message?: string;
   boardSummary?: string;
   history?: TutorHistoryMessage[];
@@ -27,6 +29,8 @@ export async function POST(request: Request) {
 
     const turn = await runTutorTurn({
       topicId: body.topicId ?? "graphics-gui",
+      subjectName: body.subjectName,
+      curriculumContext: body.curriculumContext,
       userText: message,
       boardSummary: body.boardSummary ?? "No board state supplied.",
       history: body.history ?? [],

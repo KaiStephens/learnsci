@@ -1,5 +1,11 @@
 export type CurriculumItemType = "material" | "checkpoint";
 
+export type CurriculumResource = {
+  title: string;
+  url: string;
+  kind: "video" | "website" | "document" | "reference";
+};
+
 export type CurriculumItem = {
   title: string;
   type: CurriculumItemType;
@@ -7,6 +13,7 @@ export type CurriculumItem = {
   status?: "reference";
   skills: string[];
   reviewPrompt: string;
+  resources?: CurriculumResource[];
 };
 
 export type CurriculumTopic = {

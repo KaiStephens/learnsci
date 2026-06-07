@@ -30,6 +30,26 @@ OPENROUTER_API_KEY=sk-or-v1-...
 
 The browser never receives the API key. Voice turns go through `app/api/tutor/voice/route.ts`; typed turns go through `app/api/tutor/chat/route.ts`.
 
+## First-Run Setup
+
+On first launch, LearnSci asks what it should teach. The built-in packs are:
+
+- ICS4U Computer Science
+- Math Review
+- Science Review
+- Humanities Review
+- Custom Subject
+
+Custom lessons can be pasted one per line. Add a resource by separating the lesson title and URL with a pipe:
+
+```text
+Photosynthesis | https://example.com/video
+Cellular respiration
+Energy transfer
+```
+
+The chosen subject is saved in browser local storage and sent to the tutor with each chat or voice turn, so the same canvas tutor can adapt beyond computer science.
+
 ## Curriculum Privacy
 
 The committed curriculum is a sanitized outline inferred from Classroom topic names, assignment titles, due dates, and broad skills. Private attachments, submissions, and teacher-authored instructions are intentionally not committed. Put any private exported curriculum in `data/*.local.json`, which is ignored by git.

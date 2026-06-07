@@ -54,6 +54,167 @@ button {
   background: var(--bg);
 }
 
+.setup-shell {
+  position: absolute;
+  inset: 0;
+  z-index: 2000;
+  display: grid;
+  place-items: center;
+  background: rgba(7, 8, 8, 0.64);
+  backdrop-filter: blur(18px);
+  padding: 20px;
+}
+
+.setup-card {
+  display: grid;
+  gap: 14px;
+  width: min(620px, calc(100vw - 40px));
+  max-height: calc(100dvh - 40px);
+  overflow-y: auto;
+  border: 1px solid var(--line-strong);
+  border-radius: 16px;
+  background: rgba(10, 12, 12, 0.94);
+  box-shadow: 0 30px 120px rgba(0, 0, 0, 0.48);
+  padding: 18px;
+}
+
+.setup-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.setup-head span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.setup-head button,
+.setup-reset {
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.setup-head button {
+  width: 32px;
+  height: 32px;
+}
+
+.setup-card h2 {
+  margin: 0;
+  font-size: 28px;
+  line-height: 1.05;
+}
+
+.setup-card p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.setup-packs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.setup-pack {
+  position: relative;
+  display: grid;
+  gap: 5px;
+  min-height: 92px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(242, 245, 242, 0.025);
+  color: var(--ink);
+  cursor: pointer;
+  padding: 12px;
+  text-align: left;
+}
+
+.setup-pack span {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.setup-pack small {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.setup-pack svg {
+  position: absolute;
+  top: 11px;
+  right: 11px;
+  color: var(--accent);
+}
+
+.setup-pack:hover,
+.setup-pack:focus-visible,
+.setup-pack.active,
+.setup-primary:hover,
+.setup-primary:focus-visible,
+.setup-head button:hover,
+.setup-head button:focus-visible,
+.setup-reset:hover,
+.setup-reset:focus-visible {
+  border-color: var(--line-strong);
+  background: rgba(242, 245, 242, 0.05);
+  outline: none;
+}
+
+.setup-pack.active {
+  border-color: rgba(150, 230, 188, 0.32);
+  background: rgba(150, 230, 188, 0.07);
+}
+
+.custom-setup {
+  display: grid;
+  gap: 8px;
+}
+
+.custom-setup input,
+.custom-setup textarea {
+  width: 100%;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: #050606;
+  color: var(--ink);
+  outline: none;
+  padding: 10px 11px;
+}
+
+.custom-setup textarea {
+  min-height: 124px;
+  resize: vertical;
+}
+
+.setup-primary {
+  justify-self: start;
+  min-height: 38px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--rail-2);
+  color: var(--ink);
+  cursor: pointer;
+  padding: 0 14px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
 .tldraw-stage {
   position: absolute;
   inset: 0;
@@ -122,6 +283,12 @@ button {
   gap: 10px;
   min-height: 42px;
   padding: 0 4px;
+}
+
+.setup-reset {
+  width: 32px;
+  height: 32px;
+  margin-left: auto;
 }
 
 .rail-mark {
@@ -297,6 +464,39 @@ button {
   font-size: 11px;
 }
 
+.resource-list {
+  display: grid;
+  gap: 5px;
+}
+
+.resource-list a {
+  display: grid;
+  grid-template-columns: 15px minmax(0, 1fr);
+  gap: 7px;
+  align-items: center;
+  min-height: 30px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: #dfe7e1;
+  padding: 6px 8px;
+  font-size: 11px;
+  text-decoration: none;
+}
+
+.resource-list a:hover,
+.resource-list a:focus-visible {
+  border-color: var(--line-strong);
+  background: rgba(242, 245, 242, 0.045);
+  outline: none;
+}
+
+.resource-list a span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .start-lesson {
   justify-self: start;
   min-height: 34px;
@@ -458,6 +658,14 @@ button {
 }
 
 @media (max-width: 720px) {
+  .setup-packs {
+    grid-template-columns: 1fr;
+  }
+
+  .setup-card h2 {
+    font-size: 23px;
+  }
+
   .lesson-rail {
     top: 10px;
     left: 10px;

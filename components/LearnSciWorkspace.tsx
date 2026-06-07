@@ -4,13 +4,19 @@ import {
   BookOpen,
   ChevronDown,
   ChevronRight,
+  Check,
   Download,
   GraduationCap,
   MessageCircle,
   Mic,
   MicOff,
+  Plus,
+  Settings,
   ShieldCheck,
+  Sparkles,
   Upload,
+  X,
+  Globe,
 } from "lucide-react";
 import { useCallback, useMemo, useRef, useState } from "react";
 import {
@@ -92,6 +98,229 @@ type CanvasStats = {
   shapeCount: number;
   summary: string;
 };
+
+type StudyProfile = {
+  subjectName: string;
+  topics: CurriculumTopic[];
+  setupComplete: boolean;
+};
+
+type LessonPack = {
+  id: string;
+  name: string;
+  description: string;
+  topics: CurriculumTopic[];
+};
+
+const PROFILE_STORAGE_KEY = "learnsci-study-profile-v1";
+
+const SUBJECT_PACKS: LessonPack[] = [
+  {
+    id: "ics4u",
+    name: "ICS4U Computer Science",
+    description: "OOP, Java foundations, arrays, algorithms, recursion, graphics.",
+    topics: curriculum,
+  },
+  {
+    id: "math",
+    name: "Math Review",
+    description: "Functions, algebra, trigonometry, calculus-style reasoning.",
+    topics: [
+      {
+        id: "math-functions",
+        name: "Functions and Graphs",
+        accent: "#8fd8ff",
+        objective: "Review domain, range, transformations, and graph interpretation.",
+        examWeight: "Core",
+        checkpoints: ["Identify domain and range.", "Explain transformations.", "Sketch from an equation."],
+        items: [
+          {
+            title: "Graph Transformations",
+            type: "material",
+            date: "Jun 7",
+            status: "reference",
+            skills: ["functions", "graphs", "transformations"],
+            reviewPrompt: "Teach graph transformations with a clear before-and-after visual.",
+          },
+          {
+            title: "Domain and Range",
+            type: "checkpoint",
+            date: "Jun 7",
+            status: "reference",
+            skills: ["domain", "range", "interval notation"],
+            reviewPrompt: "Quiz me on finding domain and range from graphs and equations.",
+          },
+        ],
+      },
+      {
+        id: "math-trig",
+        name: "Trigonometry",
+        accent: "#ffd89b",
+        objective: "Connect ratios, unit-circle thinking, identities, and graph behavior.",
+        examWeight: "High",
+        checkpoints: ["Use SOH CAH TOA.", "Read unit-circle values.", "Explain sine/cosine graphs."],
+        items: [
+          {
+            title: "Unit Circle Basics",
+            type: "material",
+            date: "Jun 7",
+            status: "reference",
+            skills: ["unit circle", "angles", "ratios"],
+            reviewPrompt: "Draw the unit circle basics and explain the key coordinates.",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: "science",
+    name: "Science Review",
+    description: "Concept maps, lab reasoning, systems, formulas, and diagrams.",
+    topics: [
+      {
+        id: "science-systems",
+        name: "Systems and Models",
+        accent: "#9be7c0",
+        objective: "Explain inputs, outputs, variables, and cause-effect relationships.",
+        examWeight: "Core",
+        checkpoints: ["Define the system boundary.", "Track variables.", "Use diagrams to explain change."],
+        items: [
+          {
+            title: "Cause and Effect Diagrams",
+            type: "material",
+            date: "Jun 7",
+            status: "reference",
+            skills: ["systems", "variables", "diagrams"],
+            reviewPrompt: "Draw a cause-and-effect model and quiz me on the variables.",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: "humanities",
+    name: "Humanities Review",
+    description: "Timelines, evidence, thesis structure, comparison, and analysis.",
+    topics: [
+      {
+        id: "humanities-evidence",
+        name: "Evidence and Analysis",
+        accent: "#c8b6ff",
+        objective: "Build arguments using claims, evidence, reasoning, and counterpoints.",
+        examWeight: "Core",
+        checkpoints: ["Write a claim.", "Choose evidence.", "Explain why it proves the point."],
+        items: [
+          {
+            title: "Claim Evidence Reasoning",
+            type: "material",
+            date: "Jun 7",
+            status: "reference",
+            skills: ["claim", "evidence", "reasoning"],
+            reviewPrompt: "Teach claim-evidence-reasoning with a simple argument map.",
+          },
+        ],
+      },
+    ],
+  },
+];
+
+function fallbackProfile(): StudyProfile {
+  return {
+    subjectName: SUBJECT_PACKS[0].name,
+    topics: SUBJECT_PACKS[0].topics,
+    setupComplete: false,
+  };
+}
+
+function readStoredProfile(): StudyProfile | undefined {
+  if (typeof window === "undefined") return undefined;
+
+  try {
+    const stored = localStorage.getItem(PROFILE_STORAGE_KEY);
+    if (!stored) return undefined;
+    const parsed = JSON.parse(stored) as StudyProfile;
+    return parsed.topics?.length ? parsed : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function initialProfile() {
+  return readStoredProfile() ?? fallbackProfile();
+}
+
+function initialSetupVisible() {
+  return !(readStoredProfile()?.setupComplete ?? false);
+}
+
+function initialTopicId() {
+  return initialProfile().topics[0]?.id ?? "graphics-gui";
+}
+
+function slugify(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "custom";
+}
+
+function parseCustomLessons(subjectName: string, raw: string): CurriculumTopic[] {
+  const lines = raw
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  if (!lines.length) {
+    return SUBJECT_PACKS[0].topics;
+  }
+
+  return [
+    {
+      id: `custom-${slugify(subjectName)}`,
+      name: subjectName || "Custom Study",
+      accent: "#96e6bc",
+      objective: `Review ${subjectName || "this subject"} with visual explanations and practice questions.`,
+      examWeight: "Core",
+      checkpoints: ["Explain the key idea.", "Draw the concept.", "Answer one practice question."],
+      items: lines.map((line, index) => {
+        const [rawTitle, rawUrl] = line.split("|").map((part) => part.trim());
+        const title = rawTitle.replace(/^[-*]\s*/, "");
+        const url = rawUrl?.startsWith("http") ? rawUrl : undefined;
+
+        return {
+          title,
+          type: index === 0 ? "checkpoint" : "material",
+          date: "Custom",
+          status: "reference",
+          skills: ["custom lesson", subjectName || "study"],
+          reviewPrompt: `Teach ${title} with a clear example, then ask one check-for-understanding question.`,
+          resources: url
+            ? [
+                {
+                  title: `${title} resource`,
+                  url,
+                  kind: url.includes("youtube.com") || url.includes("youtu.be") ? "video" : "website",
+                },
+              ]
+            : undefined,
+        };
+      }),
+    },
+  ];
+}
+
+function serializeCurriculum(topics: CurriculumTopic[]) {
+  return topics
+    .map((topic) => {
+      const lessons = topic.items
+        .map((item) => {
+          const resources = item.resources?.length
+            ? ` Resources: ${item.resources.map((resource) => `${resource.title} (${resource.url})`).join(", ")}`
+            : "";
+          return `${item.title}.${resources}`;
+        })
+        .join("; ");
+      return `${topic.name}: ${topic.objective}. Lessons: ${lessons}.`;
+    })
+    .join("\n");
+}
 
 function evidenceDrawing(log: ProgressLog): CanvasDrawing {
   const lines = summarizeEvidence(log);
@@ -753,8 +982,13 @@ function drawDiagramOnTldraw(editor: Editor, diagram: Diagram) {
 }
 
 export function LearnSciWorkspace() {
-  const [selectedTopicId, setSelectedTopicId] = useState("graphics-gui");
-  const [expandedTopicId, setExpandedTopicId] = useState("graphics-gui");
+  const [studyProfile, setStudyProfile] = useState<StudyProfile>(() => initialProfile());
+  const [showSetup, setShowSetup] = useState(() => initialSetupVisible());
+  const [setupPackId, setSetupPackId] = useState(SUBJECT_PACKS[0].id);
+  const [customSubject, setCustomSubject] = useState("");
+  const [customLessons, setCustomLessons] = useState("");
+  const [selectedTopicId, setSelectedTopicId] = useState(() => initialTopicId());
+  const [expandedTopicId, setExpandedTopicId] = useState(() => initialTopicId());
   const [selectedLessonIndex, setSelectedLessonIndex] = useState(0);
   const [sessionState, setSessionState] = useState<SessionState>("idle");
   const [status, setStatus] = useState("Ready");
@@ -776,12 +1010,16 @@ export function LearnSciWorkspace() {
   const playerRef = useRef<HTMLAudioElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  const selectedTopic = useMemo(() => getTopic(selectedTopicId), [selectedTopicId]);
+  const activeCurriculum = studyProfile.topics.length ? studyProfile.topics : curriculum;
+  const selectedTopic = useMemo(
+    () => activeCurriculum.find((topic) => topic.id === selectedTopicId) ?? activeCurriculum[0] ?? getTopic(selectedTopicId),
+    [activeCurriculum, selectedTopicId],
+  );
   const selectedLesson = selectedTopic.items[selectedLessonIndex] ?? selectedTopic.items[0];
   const latestAssistant = [...messages].reverse().find((message) => message.role === "assistant");
   const progressPreview = useMemo(
-    () => createProgressLog(curriculum, "LearnSci progress preview"),
-    [],
+    () => createProgressLog(activeCurriculum, "LearnSci progress preview"),
+    [activeCurriculum],
   );
   const evidenceSummary = useMemo(() => summarizeEvidence(progressPreview), [progressPreview]);
 
@@ -798,10 +1036,11 @@ export function LearnSciWorkspace() {
   const boardSummary = useCallback(() => {
     return [
       canvasStats.summary,
-      `unit ${selectedTopic.name}`,
+      `subject ${studyProfile.subjectName}`,
+      `topic ${selectedTopic.name}`,
       `lesson ${selectedLesson.title}`,
     ].join("; ");
-  }, [canvasStats.summary, selectedLesson.title, selectedTopic.name]);
+  }, [canvasStats.summary, selectedLesson.title, selectedTopic.name, studyProfile.subjectName]);
 
   const playAudio = useCallback((dataUrl?: string) => {
     if (!dataUrl) return;
@@ -886,6 +1125,8 @@ export function LearnSciWorkspace() {
           },
           body: JSON.stringify({
             topicId: selectedTopicId,
+            subjectName: studyProfile.subjectName,
+            curriculumContext: serializeCurriculum(activeCurriculum),
             boardSummary: boardSummary(),
             history: messages.map((message) => ({
               role: message.role,
@@ -911,7 +1152,7 @@ export function LearnSciWorkspace() {
         addMessage("system", message);
       }
     },
-    [addMessage, boardSummary, handleTutorResponse, messages, selectedTopicId],
+    [activeCurriculum, addMessage, boardSummary, handleTutorResponse, messages, selectedTopicId, studyProfile.subjectName],
   );
 
   const sendPrompt = useCallback(
@@ -1010,17 +1251,48 @@ export function LearnSciWorkspace() {
     setSelectedLessonIndex(index);
   };
 
+  const applyStudySetup = () => {
+    const selectedPack = SUBJECT_PACKS.find((pack) => pack.id === setupPackId) ?? SUBJECT_PACKS[0];
+    const nextProfile =
+      setupPackId === "custom"
+        ? {
+            subjectName: customSubject.trim() || "Custom Study",
+            topics: parseCustomLessons(customSubject.trim() || "Custom Study", customLessons),
+            setupComplete: true,
+          }
+        : {
+            subjectName: selectedPack.name,
+            topics: selectedPack.topics,
+            setupComplete: true,
+          };
+
+    setStudyProfile(nextProfile);
+    setSelectedTopicId(nextProfile.topics[0].id);
+    setExpandedTopicId(nextProfile.topics[0].id);
+    setSelectedLessonIndex(0);
+    setShowSetup(false);
+    localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(nextProfile));
+    addMessage("system", `${nextProfile.subjectName} loaded.`);
+  };
+
+  const resetStudySetup = () => {
+    setSetupPackId(SUBJECT_PACKS[0].id);
+    setCustomSubject("");
+    setCustomLessons("");
+    setShowSetup(true);
+  };
+
   const drawRubricEvidence = () => {
     const editor = editorRef.current;
     if (!editor) return;
-    const log = createProgressLog(curriculum, boardSummary());
+    const log = createProgressLog(activeCurriculum, boardSummary());
     drawCanvasOnTldraw(editor, evidenceDrawing(log));
     updateCanvasStats(editor);
     addMessage("system", "Rubric evidence diagram added to the board.");
   };
 
   const exportProgressLog = () => {
-    const log = createProgressLog(curriculum, boardSummary());
+    const log = createProgressLog(activeCurriculum, boardSummary());
     const blob = new Blob([JSON.stringify(log, null, 2)], {
       type: "application/json",
     });
@@ -1063,6 +1335,75 @@ export function LearnSciWorkspace() {
 
   return (
     <main className="learn-app">
+      {showSetup ? (
+        <section className="setup-shell" aria-label="Study setup" role="dialog">
+          <div className="setup-card">
+            <div className="setup-head">
+              <span>
+                <Sparkles size={16} aria-hidden="true" />
+                First boot
+              </span>
+              <button
+                aria-label="Close setup"
+                onClick={() => setShowSetup(false)}
+                type="button"
+              >
+                <X size={16} aria-hidden="true" />
+              </button>
+            </div>
+            <h2>Choose what LearnSci should teach.</h2>
+            <p>
+              Start with Computer Science or adapt the same canvas tutor to another subject.
+            </p>
+
+            <div className="setup-packs" aria-label="Lesson packs">
+              {SUBJECT_PACKS.map((pack) => (
+                <button
+                  className={classNames("setup-pack", setupPackId === pack.id && "active")}
+                  key={pack.id}
+                  onClick={() => setSetupPackId(pack.id)}
+                  type="button"
+                >
+                  <span>{pack.name}</span>
+                  <small>{pack.description}</small>
+                  {setupPackId === pack.id ? <Check size={15} aria-hidden="true" /> : null}
+                </button>
+              ))}
+              <button
+                className={classNames("setup-pack", setupPackId === "custom" && "active")}
+                onClick={() => setSetupPackId("custom")}
+                type="button"
+              >
+                <span>Custom Subject</span>
+                <small>Paste any lessons, one per line.</small>
+                {setupPackId === "custom" ? <Check size={15} aria-hidden="true" /> : <Plus size={15} aria-hidden="true" />}
+              </button>
+            </div>
+
+            {setupPackId === "custom" ? (
+              <div className="custom-setup">
+                <input
+                  aria-label="Custom subject name"
+                  onChange={(event) => setCustomSubject(event.target.value)}
+                  placeholder="Subject name..."
+                  value={customSubject}
+                />
+                <textarea
+                  aria-label="Custom lessons"
+                  onChange={(event) => setCustomLessons(event.target.value)}
+                  placeholder={"Paste lessons, one per line...\nPhotosynthesis | https://example.com/video\nCellular respiration\nEnergy transfer"}
+                  value={customLessons}
+                />
+              </div>
+            ) : null}
+
+            <button className="setup-primary" onClick={applyStudySetup} type="button">
+              Start studying
+            </button>
+          </div>
+        </section>
+      ) : null}
+
       <aside className="lesson-rail" aria-label="Lessons">
         <div className="rail-scroll">
           <div className="rail-brand">
@@ -1071,14 +1412,23 @@ export function LearnSciWorkspace() {
             </div>
             <div>
               <h1>LearnSci</h1>
-              <span>ICS4U</span>
+              <span>{studyProfile.subjectName}</span>
             </div>
+            <button
+              aria-label="Change study setup"
+              className="setup-reset"
+              onClick={resetStudySetup}
+              title="Change study setup"
+              type="button"
+            >
+              <Settings size={15} aria-hidden="true" />
+            </button>
           </div>
 
           <div className="rail-section">
-            <span className="rail-label">Units</span>
-            <nav className="unit-accordion" aria-label="Course units">
-              {curriculum.map((topic) => {
+            <span className="rail-label">Topics</span>
+            <nav className="unit-accordion" aria-label="Study topics">
+              {activeCurriculum.map((topic) => {
                 const isExpanded = topic.id === expandedTopicId;
                 const isSelected = topic.id === selectedTopicId;
 
@@ -1135,6 +1485,16 @@ export function LearnSciWorkspace() {
                 <span key={skill}>{skill}</span>
               ))}
             </div>
+            {selectedLesson.resources?.length ? (
+              <div className="resource-list" aria-label="Lesson resources">
+                {selectedLesson.resources.map((resource) => (
+                  <a href={resource.url} key={resource.url} rel="noreferrer" target="_blank">
+                    <Globe size={13} aria-hidden="true" />
+                    <span>{resource.title}</span>
+                  </a>
+                ))}
+              </div>
+            ) : null}
             <button
               className="start-lesson"
               disabled={sessionState === "thinking"}

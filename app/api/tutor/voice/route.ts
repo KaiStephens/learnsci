@@ -11,6 +11,8 @@ export const dynamic = "force-dynamic";
 
 type VoiceRequest = {
   topicId?: string;
+  subjectName?: string;
+  curriculumContext?: string;
   audioBase64?: string;
   audioFormat?: string;
   durationMs?: number;
@@ -44,6 +46,8 @@ export async function POST(request: Request) {
 
     const turn = await runTutorTurn({
       topicId: body.topicId ?? "graphics-gui",
+      subjectName: body.subjectName,
+      curriculumContext: body.curriculumContext,
       userText: transcript,
       boardSummary: body.boardSummary ?? "No board state supplied.",
       history: body.history ?? [],

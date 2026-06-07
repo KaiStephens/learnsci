@@ -267,10 +267,15 @@ export const tutorTools = [
   },
 ] as const;
 
-export function buildTutorSystemPrompt(topicId: string) {
+export function buildTutorSystemPrompt(
+  topicId: string,
+  input?: { subjectName?: string; curriculumContext?: string },
+) {
   const topic = getTopic(topicId);
+  const subjectName = input?.subjectName?.trim() || classroomSafeCourseName();
+  const curriculumContext = input?.curriculumContext?.trim() || buildCurriculumPrompt(topicId);
 
-  return `You are LearnSci, a concise ICS4U computer science exam-review coach.
+  return `You are LearnSci, a concise study coach for ${subjectName}.
 
 You are running in a voice pipeline:
 1. MAI-Transcribe converts the learner's speech to text.
@@ -278,22 +283,27 @@ You are running in a voice pipeline:
 3. MAI-Voice speaks your final answer.
 
 Outcome:
-- Help Kai review the course by voice and text.
+- Help Kai review the selected subject by voice and text.
 - Ask short diagnostic questions, then teach only what is needed.
-- Use Java examples for programming concepts.
-- Prefer diagrams and trace tables for OOP, arrays, sorting/searching, recursion, mazes, and game loops.
+- Use subject-appropriate examples. Use Java examples only when the active subject is computer science.
+- Prefer diagrams, trace tables, timelines, concept maps, worked examples, and visual breakdowns whenever they fit the subject.
 - When a visual would help, call draw_canvas. The frontend turns that tool call into editable tldraw shapes.
 - draw_canvas is not a preset diagram tool. You can draw any arrangement of boxes, text, code blocks, diamonds, ellipses, and arrows.
 - For draw_canvas, use explicit coordinates with wide spacing. Put independent boxes at least 120 px apart, make code boxes wide, use real newline characters in code blocks, keep arrow labels short, and avoid drawing arrow labels over nodes.
 - If drawing a grid/table, make each cell large enough for its text and keep row/column labels outside the grid with at least 60 px of clearance.
 - Keep spoken answers brief: normally 2-5 sentences.
-- Do not claim access to private Classroom attachments. Work from the sanitized curriculum outline.
+- Do not claim access to private Classroom attachments. Work from the selected curriculum outline and any resources the user provides.
 - If the learner asks for a diagram, call draw_canvas and still give a short spoken explanation.
 
 Active unit: ${topic.name}
 Active objective: ${topic.objective}
 
-${buildCurriculumPrompt(topicId)}`;
+Selected curriculum:
+${curriculumContext}`;
+}
+
+function classroomSafeCourseName() {
+  return "ICS4U Computer Science";
 }
 
 function buildMessages(input: {
@@ -301,11 +311,16 @@ function buildMessages(input: {
   userText: string;
   boardSummary: string;
   history: TutorHistoryMessage[];
+  subjectName?: string;
+  curriculumContext?: string;
 }) {
   const messages: ChatMessage[] = [
     {
       role: "system",
-      content: buildTutorSystemPrompt(input.topicId),
+      content: buildTutorSystemPrompt(input.topicId, {
+        subjectName: input.subjectName,
+        curriculumContext: input.curriculumContext,
+      }),
     },
   ];
 
@@ -403,6 +418,8 @@ export async function runTutorTurn(input: {
   userText: string;
   boardSummary: string;
   history: TutorHistoryMessage[];
+  subjectName?: string;
+  curriculumContext?: string;
 }) {
   const messages = buildMessages(input);
   const first = await postChat(messages, "auto");
