@@ -4,10 +4,13 @@ import {
   BookOpen,
   ChevronDown,
   ChevronRight,
+  Download,
   GraduationCap,
   MessageCircle,
   Mic,
   MicOff,
+  ShieldCheck,
+  Upload,
 } from "lucide-react";
 import { useCallback, useMemo, useRef, useState } from "react";
 import {
@@ -26,6 +29,7 @@ import {
 } from "tldraw";
 import { curriculum, getTopic, type CurriculumItem, type CurriculumTopic } from "@/lib/curriculum";
 import type { TutorToolCall } from "@/lib/openrouter";
+import { createProgressLog, summarizeEvidence, type ProgressLog } from "@/lib/studyEngine";
 
 type SessionState = "idle" | "recording" | "thinking" | "error";
 
@@ -88,6 +92,89 @@ type CanvasStats = {
   shapeCount: number;
   summary: string;
 };
+
+function evidenceDrawing(log: ProgressLog): CanvasDrawing {
+  const lines = summarizeEvidence(log);
+
+  return {
+    title: "LearnSci Rubric Evidence",
+    elements: [
+      {
+        id: "oop",
+        type: "box",
+        x: 0,
+        y: 0,
+        w: 300,
+        h: 116,
+        text: "OOP classes\nStudyNode -> LessonNode\nStudyDeck constructor",
+        color: "violet",
+        size: "m",
+      },
+      {
+        id: "grid",
+        type: "box",
+        x: 390,
+        y: 0,
+        w: 300,
+        h: 116,
+        text: `2D array/data structure\n${lines[1]}`,
+        color: "green",
+        size: "m",
+      },
+      {
+        id: "sort",
+        type: "box",
+        x: 0,
+        y: 190,
+        w: 300,
+        h: 116,
+        text: "Sort algorithm\nselectionSortByDifficulty()",
+        color: "orange",
+        size: "m",
+      },
+      {
+        id: "search",
+        type: "box",
+        x: 390,
+        y: 190,
+        w: 300,
+        h: 116,
+        text: `Search algorithm\nbinarySearchByTitle()\n${lines[3]}`,
+        color: "blue",
+        size: "m",
+      },
+      {
+        id: "recursion",
+        type: "box",
+        x: 0,
+        y: 380,
+        w: 300,
+        h: 116,
+        text: `Recursion\nrecursivePrerequisitePath()\n${lines[4]}`,
+        color: "red",
+        size: "m",
+      },
+      {
+        id: "fileio",
+        type: "box",
+        x: 390,
+        y: 380,
+        w: 300,
+        h: 116,
+        text: "File input/output\nExport and import progress log JSON",
+        color: "yellow",
+        size: "m",
+      },
+    ],
+    arrows: [
+      { from: "oop", to: "grid", label: "builds lessons", color: "violet" },
+      { from: "grid", to: "sort", label: "feeds", color: "green" },
+      { from: "sort", to: "search", label: "orders", color: "orange" },
+      { from: "search", to: "recursion", label: "drills", color: "blue" },
+      { from: "recursion", to: "fileio", label: "logged", color: "red" },
+    ],
+  };
+}
 
 const EMPTY_CANVAS_STATS: CanvasStats = {
   shapeCount: 0,
@@ -687,10 +774,16 @@ export function LearnSciWorkspace() {
   const chunksRef = useRef<Blob[]>([]);
   const startedAtRef = useRef(0);
   const playerRef = useRef<HTMLAudioElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const selectedTopic = useMemo(() => getTopic(selectedTopicId), [selectedTopicId]);
   const selectedLesson = selectedTopic.items[selectedLessonIndex] ?? selectedTopic.items[0];
   const latestAssistant = [...messages].reverse().find((message) => message.role === "assistant");
+  const progressPreview = useMemo(
+    () => createProgressLog(curriculum, "LearnSci progress preview"),
+    [],
+  );
+  const evidenceSummary = useMemo(() => summarizeEvidence(progressPreview), [progressPreview]);
 
   const updateCanvasStats = useCallback((editor = editorRef.current) => {
     if (!editor) return;
@@ -917,6 +1010,46 @@ export function LearnSciWorkspace() {
     setSelectedLessonIndex(index);
   };
 
+  const drawRubricEvidence = () => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    const log = createProgressLog(curriculum, boardSummary());
+    drawCanvasOnTldraw(editor, evidenceDrawing(log));
+    updateCanvasStats(editor);
+    addMessage("system", "Rubric evidence diagram added to the board.");
+  };
+
+  const exportProgressLog = () => {
+    const log = createProgressLog(curriculum, boardSummary());
+    const blob = new Blob([JSON.stringify(log, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `learnsci-progress-${new Date().toISOString().slice(0, 10)}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+    addMessage("system", "Progress log exported as JSON.");
+  };
+
+  const importProgressLog = (file: File | undefined) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const log = JSON.parse(String(reader.result ?? "")) as ProgressLog;
+        addMessage(
+          "system",
+          `Imported ${log.evidence?.length ?? 0} evidence items from ${file.name}.`,
+        );
+      } catch {
+        addMessage("system", `Could not read ${file.name} as a LearnSci progress log.`);
+      }
+    };
+    reader.readAsText(file);
+  };
+
   const handleMount = useCallback(
     (editor: Editor) => {
       editorRef.current = editor;
@@ -1021,6 +1154,40 @@ export function LearnSciWorkspace() {
                 <p>{quizCards[0].answer}</p>
               </details>
             ) : null}
+          </section>
+
+          <section className="evidence-panel" aria-label="Rubric evidence">
+            <span className="rail-label">Rubric Proof</span>
+            <div className="evidence-grid">
+              {["OOP", "2D array", "sort", "search", "recursion", "file I/O"].map((item) => (
+                <span key={item}>{item}</span>
+              ))}
+            </div>
+            <p>{evidenceSummary.join(" / ")}</p>
+            <div className="evidence-actions">
+              <button onClick={drawRubricEvidence} type="button">
+                <ShieldCheck size={14} aria-hidden="true" />
+                <span>Draw proof</span>
+              </button>
+              <button onClick={exportProgressLog} type="button">
+                <Download size={14} aria-hidden="true" />
+                <span>Export</span>
+              </button>
+              <button onClick={() => fileInputRef.current?.click()} type="button">
+                <Upload size={14} aria-hidden="true" />
+                <span>Import</span>
+              </button>
+            </div>
+            <input
+              accept="application/json"
+              className="file-input"
+              onChange={(event) => {
+                importProgressLog(event.target.files?.[0]);
+                event.target.value = "";
+              }}
+              ref={fileInputRef}
+              type="file"
+            />
           </section>
         </div>
       </aside>

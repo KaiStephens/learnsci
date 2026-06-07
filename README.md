@@ -33,3 +33,22 @@ The browser never receives the API key. Voice turns go through `app/api/tutor/vo
 ## Curriculum Privacy
 
 The committed curriculum is a sanitized outline inferred from Classroom topic names, assignment titles, due dates, and broad skills. Private attachments, submissions, and teacher-authored instructions are intentionally not committed. Put any private exported curriculum in `data/*.local.json`, which is ignored by git.
+
+## Conference / Rubric Evidence
+
+The app includes a compact **Rubric Proof** panel in the floating sidebar.
+
+- **Draw proof** adds a tldraw diagram showing project evidence for OOP, 2D arrays, sorting, searching, recursion, and file I/O.
+- **Export** downloads a JSON progress log.
+- **Import** reads a previously exported progress log JSON.
+
+Concrete programming evidence lives in `lib/studyEngine.ts`:
+
+- `StudyNode`, `LessonNode`, and `StudyDeck` show classes, constructors, inheritance, and overridden methods.
+- `build2DReviewGrid()` demonstrates a 2D array/data-structure view of the lessons.
+- `selectionSortByDifficulty()` implements a sort algorithm.
+- `binarySearchByTitle()` implements a search algorithm.
+- `recursivePrerequisitePath()` includes recursion.
+- The sidebar export/import controls provide browser file output and input.
+
+The conference progress report is in `docs/conference-progress-report.md`.

@@ -154,7 +154,8 @@ button {
 
 .rail-section,
 .lesson-context,
-.answer-thread {
+.answer-thread,
+.evidence-panel {
   min-width: 0;
 }
 
@@ -189,6 +190,7 @@ button {
 .unit-button,
 .lesson-button,
 .start-lesson,
+.evidence-actions button,
 .voice-bubble {
   border: 1px solid transparent;
   border-radius: var(--radius);
@@ -244,6 +246,8 @@ button {
 .lesson-button.active,
 .start-lesson:hover,
 .start-lesson:focus-visible,
+.evidence-actions button:hover,
+.evidence-actions button:focus-visible,
 .voice-bubble:hover,
 .voice-bubble:focus-visible {
   border-color: var(--line-strong);
@@ -336,6 +340,65 @@ button {
   color: #e4eae5;
   cursor: pointer;
   font-size: 12px;
+}
+
+.evidence-panel {
+  display: grid;
+  gap: 8px;
+  border-top: 1px solid var(--line);
+  padding: 11px 4px 0;
+}
+
+.evidence-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.evidence-grid span {
+  border: 1px solid rgba(150, 230, 188, 0.18);
+  border-radius: 999px;
+  background: rgba(150, 230, 188, 0.055);
+  color: #dfe7e1;
+  padding: 4px 7px;
+  font-size: 11px;
+}
+
+.evidence-panel p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.evidence-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.evidence-actions button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-width: 0;
+  min-height: 32px;
+  border-color: var(--line);
+  color: #dfe7e1;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.evidence-actions button span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-input {
+  display: none;
 }
 
 .voice-bubble {
