@@ -28,35 +28,136 @@ export type CurriculumTopic = {
 
 export const classroomScan = {
   course: "1-12 Computer Science ICS4U1",
-  source: "Firefox Google Classroom classwork and stream scan",
-  scannedAt: "2026-05-31",
+  source: "Google Classroom classwork bulk response scan",
+  scannedAt: "2026-06-08",
   privacy:
-    "This app stores a sanitized lesson outline inferred from titles and topics. It does not commit private attachments, student submissions, or teacher-authored instructions.",
+    "This app stores a sanitized lesson outline with public YouTube and website resources. It does not commit private Drive attachments, student submissions, forms, or teacher-only instructions.",
 };
+
+const video = (title: string, url: string): CurriculumResource => ({
+  title,
+  url,
+  kind: "video",
+});
+
+const website = (title: string, url: string): CurriculumResource => ({
+  title,
+  url,
+  kind: "website",
+});
+
+const reference = (title: string, url: string): CurriculumResource => ({
+  title,
+  url,
+  kind: "reference",
+});
 
 export const curriculum: CurriculumTopic[] = [
   {
-    id: "graphics-gui",
-    name: "Graphics, GUI, Vibecoding",
-    accent: "#8fd8ff",
+    id: "java-foundations",
+    name: "Java Foundations",
+    accent: "#f6f0a8",
     objective:
-      "Review Java graphics, simple UI thinking, game loops, and event-driven project structure.",
-    examWeight: "Medium",
+      "Refresh Java syntax, loops, input, arrays, 2D arrays, enhanced for loops, comments, and Eclipse workflow.",
+    examWeight: "Core",
     checkpoints: [
-      "Separate model state from drawing code.",
-      "Describe the draw loop, input handling, and collision/update order.",
-      "Use small classes for screens, sprites, tickets, or UI entities.",
-      "Debug visual code by logging state before changing rendering.",
+      "Write clean loops with correct bounds.",
+      "Use arrays and ArrayLists for the right job.",
+      "Trace nested loops over 2D arrays.",
+      "Explain comments, naming, and small-method structure.",
     ],
     items: [
       {
-        title: "Java Graphics",
+        title: "Review Resources",
         type: "material",
-        date: "Apr 27",
+        date: "Jan 27",
         status: "reference",
-        skills: ["drawing APIs", "panels", "repaint"],
+        skills: ["course review", "Java reference", "practice"],
         reviewPrompt:
-          "Summarize the minimum setup needed to draw and refresh a Java graphics view.",
+          "Build a short Java review plan from the course reference resources.",
+        resources: [
+          reference("Coding with John", "https://www.youtube.com/@CodingWithJohn"),
+          video(
+            "Java tutorial playlist",
+            "https://www.youtube.com/playlist?list=PLZPZq0r_RZOOj_NOZYq_R2PECIMglLemc",
+          ),
+          video(
+            "Java lessons playlist",
+            "https://www.youtube.com/playlist?list=PLNb_-KeTZieW3DNI2aLOAYBnjx29CN8dT",
+          ),
+          reference("Runestone CSAwesome", "https://runestone.academy/ns/books/published/csawesome/index.html"),
+        ],
+      },
+      {
+        title: "Loops and Input Recap",
+        type: "material",
+        date: "Feb 4",
+        status: "reference",
+        skills: ["loops", "input", "trace tables"],
+        reviewPrompt:
+          "Review scanner input, loop setup, loop updates, and common off-by-one mistakes.",
+      },
+      {
+        title: "Coding Techniques and Eclipse Shortcuts",
+        type: "material",
+        date: "Feb 4",
+        status: "reference",
+        skills: ["IDE workflow", "comments", "formatting"],
+        reviewPrompt:
+          "List workflow habits that make Java code easier to debug and submit.",
+        resources: [
+          video(
+            "Top 5 Terrible Java Coding Techniques You Need to Be Using Right Now",
+            "https://www.youtube.com/watch?v=YpS0Jh5yqIw",
+          ),
+          video(
+            "30+ Eclipse Shortcuts Every Java Programmer Should Know",
+            "https://www.youtube.com/watch?v=LIGkIGdmHII",
+          ),
+        ],
+      },
+      {
+        title: "Arrays Review and For-Each Loops",
+        type: "material",
+        date: "Feb 5",
+        status: "reference",
+        skills: ["arrays", "enhanced for loop", "indexing"],
+        reviewPrompt:
+          "Teach array traversal with indexed loops and enhanced for loops, then quiz indexing.",
+        resources: [video("Java for-each loop", "https://www.youtube.com/watch?v=_IT8F5W0ZO4")],
+      },
+      {
+        title: "Quiz on Arrays Review",
+        type: "material",
+        date: "Feb 17",
+        status: "reference",
+        skills: ["arrays", "quiz prep", "objects in arrays"],
+        reviewPrompt:
+          "Ask quick questions on array indexing, length, parameters, and arrays of objects.",
+        resources: [
+          reference("Runestone Array Basics", "https://runestone.academy/ns/books/published/apcsareview/ArrayBasics/toctree.html"),
+          website("Chortle quiz on arrays", "https://chortle.ccsu.edu/javaLessons/chap60/chap60quiz.html"),
+          website("Chortle quiz on loops and arrays", "https://chortle.ccsu.edu/javaLessons/chap61/chap61quiz.html"),
+          website("Chortle quiz on array parameters", "https://chortle.ccsu.edu/javaLessons/chap64/chap64quiz.html"),
+          website("Chortle quiz on arrays of objects", "https://chortle.ccsu.edu/javaLessons/chap65/chap65quiz.html"),
+        ],
+      },
+      {
+        title: "2D Arrays Recap",
+        type: "material",
+        date: "Feb 11",
+        status: "reference",
+        skills: ["2D arrays", "nested loops", "row column indexing"],
+        reviewPrompt:
+          "Summarize 2D arrays as rows and columns, then draw a bounds-safe traversal.",
+        resources: [
+          video(
+            "Iterate through 2D structure with a for loop",
+            "https://www.youtube.com/watch?v=Yr4V3Tdw6CQ",
+          ),
+          video("Two-Dimensional Arrays in Java Exercise 1", "https://www.youtube.com/watch?v=778UYhztFAE"),
+          video("Two-Dimensional Arrays in Java Exercise 2", "https://www.youtube.com/watch?v=8uxGSiCiqZA"),
+        ],
       },
     ],
   },
@@ -76,13 +177,47 @@ export const curriculum: CurriculumTopic[] = [
     ],
     items: [
       {
-        title: "Practice Test 2",
-        type: "checkpoint",
-        date: "Apr 22",
+        title: "ArrayList vs Array in Java",
+        type: "material",
+        date: "Mar 13",
         status: "reference",
-        skills: ["OOP review", "exam timing"],
+        skills: ["arrays", "ArrayList", "tradeoffs"],
         reviewPrompt:
-          "Run an oral practice test focused on class design, UML, and polymorphism.",
+          "Choose between arrays and ArrayLists for a scenario and justify the choice.",
+      },
+      {
+        title: "Objects and Classes 1/5",
+        type: "material",
+        date: "Apr 1",
+        status: "reference",
+        skills: ["objects", "classes", "fields", "methods"],
+        reviewPrompt:
+          "Explain the difference between a class blueprint and an object instance.",
+        resources: [
+          website("Chortle quiz on object data", "https://chortle.ccsu.edu/javaLessons/chap11/chap11quiz.html"),
+          website("Chortle quiz on objects", "https://chortle.ccsu.edu/javaLessons/chap40/chap40quiz.html"),
+          website("Chortle quiz on object references", "https://chortle.ccsu.edu/javaLessons/chap41/chap41quiz.html"),
+          website("Chortle quiz on object parameters", "https://chortle.ccsu.edu/javaLessons/chap52/chap52quiz.html"),
+          reference("Runestone class exercises", "https://runestone.academy/ns/books/published/csawesome2/Exercises-classes.html"),
+        ],
+      },
+      {
+        title: "Program Structure and Constructors 2/5",
+        type: "material",
+        date: "Apr 2",
+        status: "reference",
+        skills: ["constructors", "program structure", "valid objects"],
+        reviewPrompt:
+          "Design constructors that initialize valid objects without duplicated setup.",
+      },
+      {
+        title: "Inheritance 3/5",
+        type: "material",
+        date: "Apr 10",
+        status: "reference",
+        skills: ["inheritance", "extends", "overriding"],
+        reviewPrompt:
+          "Explain inheritance with a parent class, child class, overridden method, and test call.",
       },
       {
         title: "Quiz 2 Review",
@@ -93,57 +228,94 @@ export const curriculum: CurriculumTopic[] = [
         reviewPrompt: "Ask mixed short-answer questions across the OOP unit.",
       },
       {
-        title: "OOP; Abstraction and Recap 5/5",
-        type: "material",
-        date: "Apr 16",
-        status: "reference",
-        skills: ["abstraction", "interfaces", "review"],
-        reviewPrompt:
-          "Explain abstraction as hiding detail behind a useful public contract.",
-      },
-      {
-        title: "OOP; Polymorphism and Interfaces 4/5",
+        title: "Polymorphism and Interfaces 4/5",
         type: "material",
         date: "Apr 16",
         status: "reference",
         skills: ["polymorphism", "interfaces", "dynamic dispatch"],
         reviewPrompt:
-          "Use a parent/interface reference pointing at child objects and predict method calls.",
+          "Use a parent or interface reference pointing at child objects and predict method calls.",
+        resources: [
+          video("Java OOP Basics 4/5: Interfaces", "https://www.youtube.com/watch?v=KAKtFcvSKp0"),
+          reference(
+            "Runestone polymorphism",
+            "https://runestone.academy/ns/books/published/csawesome/Unit9-Inheritance/topic-9-6-polymorphism.html",
+          ),
+        ],
       },
       {
-        title: "OOP UML Diagrams",
+        title: "Abstraction and Recap 5/5",
+        type: "material",
+        date: "Apr 16",
+        status: "reference",
+        skills: ["abstraction", "abstract classes", "interfaces"],
+        reviewPrompt:
+          "Explain abstraction as hiding detail behind a useful public contract.",
+        resources: [video("Java OOP Basics 5/5: Abstract Classes", "https://www.youtube.com/watch?v=uOd1RrmNZYk")],
+      },
+      {
+        title: "Encapsulation",
+        type: "material",
+        date: "Apr 14",
+        status: "reference",
+        skills: ["private data", "getters", "setters", "invariants"],
+        reviewPrompt: "Explain why direct field access can break object invariants.",
+        resources: [
+          video("Java encapsulation", "https://www.youtube.com/watch?v=eboNNUADeIc"),
+          website("W3Schools Java encapsulation", "https://www.w3schools.com/java/java_encapsulation.asp"),
+          website(
+            "Encapsulation approaches in Java",
+            "https://medium.com/@himanshu.sharma.for.work/various-approaches-to-encapsulation-in-java-792a6dfad91b",
+          ),
+        ],
+      },
+      {
+        title: "UML Diagrams",
         type: "material",
         date: "Apr 15",
         status: "reference",
         skills: ["UML notation", "design"],
         reviewPrompt:
           "Map a code snippet into UML notation and explain each relationship.",
+        resources: [
+          video("UML class diagrams", "https://www.youtube.com/watch?v=6XrL5jXmTwM"),
+          video("UML class diagram tutorial in EdrawMax", "https://www.youtube.com/watch?v=ao1ESgIy2Ws"),
+          website("draw.io diagrams", "https://app.diagrams.net/"),
+          website(
+            "UML class diagrams tutorial",
+            "https://medium.com/@smagid_allThings/uml-class-diagrams-tutorial-step-by-step-520fd83b300b",
+          ),
+          website(
+            "UML practice problems",
+            "https://www.hackerearth.com/problem/algorithm/uml_class-diagram-1/",
+          ),
+        ],
       },
       {
-        title: "OOP Encapsulation",
+        title: "Comparable and Object Sorting",
         type: "material",
-        date: "Apr 14",
+        date: "Apr 24",
         status: "reference",
-        skills: ["private data", "getters", "setters", "invariants"],
-        reviewPrompt: "Explain why direct field access can break object invariants.",
-      },
-      {
-        title: "OOP; Program Structure and Constructors 2/5",
-        type: "material",
-        date: "Apr 2",
-        status: "reference",
-        skills: ["constructors", "program structure"],
+        skills: ["Comparable", "compareTo", "object sorting"],
         reviewPrompt:
-          "Design constructors that initialize valid objects without duplicated setup.",
+          "Teach Comparable by sorting an array or list of objects using one field.",
+        resources: [
+          reference(
+            "Programmed Lessons Comparable Interface",
+            "https://www.programmedlessons.org/Java9/chap84/ch84_01.html",
+          ),
+          video("Java Comparable interface", "https://www.youtube.com/watch?v=swEvHhN9l8k"),
+          video("Sort an object array or object list", "https://www.youtube.com/watch?v=fe0HtMsqKAs"),
+        ],
       },
       {
-        title: "OOP; Objects and Classes 1/5",
-        type: "material",
-        date: "Mar 31",
+        title: "Practice Test 2",
+        type: "checkpoint",
+        date: "Apr 22",
         status: "reference",
-        skills: ["objects", "classes", "fields", "methods"],
+        skills: ["OOP review", "exam timing"],
         reviewPrompt:
-          "Explain the difference between a class blueprint and an object instance.",
+          "Run an oral practice test focused on class design, UML, and polymorphism.",
       },
     ],
   },
@@ -171,16 +343,71 @@ export const curriculum: CurriculumTopic[] = [
           "Run timed questions on trace tables, binary search, and nested loops.",
       },
       {
+        title: "Data Structures and Algorithms Visualizations",
+        type: "material",
+        date: "Feb 26",
+        status: "reference",
+        skills: ["visualization", "algorithm tracing", "data structures"],
+        reviewPrompt:
+          "Use visual examples to compare data structure operations and algorithm steps.",
+        resources: [
+          website("CS 1332 visualizations", "https://csvistool.com/"),
+        ],
+      },
+      {
+        title: "Collaborative Sorting Research",
+        type: "material",
+        date: "Feb 27",
+        status: "reference",
+        skills: ["bubble sort", "Big O", "algorithm comparison"],
+        reviewPrompt:
+          "Compare sorting algorithms by trace behavior, time cost, and when each is useful.",
+        resources: [
+          video("Bubble Sort Java Tutorial", "https://www.youtube.com/watch?v=SwC0UNo_9mA"),
+          video("Big O notation in 6 minutes", "https://www.youtube.com/watch?v=XMUe3zFhM5c"),
+        ],
+      },
+      {
         title: "Sorting Quiz Prep",
         type: "material",
-        date: "Mar 4",
+        date: "Mar 5",
         status: "reference",
         skills: ["bubble sort", "selection sort", "insertion sort"],
         reviewPrompt:
           "Compare common sorts by what they do on each pass and how many swaps occur.",
+        resources: [
+          website("Sorting practice quiz", "https://cs30.wmcicompsci.ca/practicequiz/sorting.html"),
+          website(
+            "Liang sorting self-test",
+            "https://liveexample-ppe.pearsoncmg.com/selftest/selftest11e?chapter=23&username=liang11e",
+          ),
+          website("Sanfoundry sorting MCQ", "https://www.sanfoundry.com/sorting-multiple-choice-questions-mcq/"),
+        ],
       },
       {
-        title: "Tremaux Algorithm",
+        title: "Linear and Binary Search",
+        type: "material",
+        date: "Mar 9",
+        status: "reference",
+        skills: ["linear search", "binary search", "preconditions"],
+        reviewPrompt:
+          "Contrast linear search and binary search, including the sorted-data requirement.",
+      },
+      {
+        title: "2D CSV Sorting and Searching",
+        type: "material",
+        date: "Mar 12",
+        status: "reference",
+        skills: ["2D string arrays", "CSV", "selection sort", "binary search"],
+        reviewPrompt:
+          "Explain how a CSV becomes a 2D String structure, then search and sort rows safely.",
+        resources: [
+          reference("ICS12 teacher examples", "https://github.com/a13xrzteach/ics12"),
+          video("Reading a CSV file into a 2D String list", "https://www.youtube.com/watch?v=9ptfooOtjdM"),
+        ],
+      },
+      {
+        title: "Maze Traversal and Tremaux",
         type: "material",
         date: "Apr 1",
         status: "reference",
@@ -212,6 +439,30 @@ export const curriculum: CurriculumTopic[] = [
         skills: ["MCQ review", "trace calls"],
         reviewPrompt:
           "Ask multiple-choice recursion trace questions and explain wrong answers.",
+        resources: [
+          website("Runestone recursion easy MCQ", "https://runestone.academy/ns/books/published/csawesome/Unit10-Recursion/rEasyMC.html"),
+          website("Runestone recursion medium MCQ", "https://runestone.academy/ns/books/published/csawesome/Unit10-Recursion/rMedMC.html"),
+          website("Runestone recursion hard MCQ", "https://runestone.academy/ns/books/published/csawesome/Unit10-Recursion/rHardMC.html"),
+        ],
+      },
+      {
+        title: "Recursion Practice Exercises",
+        type: "material",
+        date: "Feb 26",
+        status: "reference",
+        skills: ["base case", "recursive case", "call stack"],
+        reviewPrompt:
+          "Trace recursive calls step by step, then explain the return order.",
+        resources: [
+          reference(
+            "Runestone recursion day 1",
+            "https://runestone.academy/ns/books/published/csawesome/Unit10-Recursion/topic-10-1-recursion-day1.html",
+          ),
+          reference(
+            "Runestone recursion day 2",
+            "https://runestone.academy/ns/books/published/csawesome/Unit10-Recursion/topic-10-1-recursion-day2.html",
+          ),
+        ],
       },
       {
         title: "Recursion Intro",
@@ -221,58 +472,64 @@ export const curriculum: CurriculumTopic[] = [
         skills: ["definition", "call stack", "self-similar problems"],
         reviewPrompt:
           "Explain recursion using the smallest possible example, then draw the stack.",
+        resources: [
+          reference(
+            "Tracing practice exercises",
+            "https://opendsa-server.cs.vt.edu/ODSA/Books/cnu/cpsc255/spring-2020/CPSC255SP2020/html/TracingEx.html",
+          ),
+        ],
       },
     ],
   },
   {
-    id: "java-foundations",
-    name: "Java Foundations",
-    accent: "#f6f0a8",
+    id: "graphics-gui",
+    name: "Graphics, GUI, Vibecoding",
+    accent: "#8fd8ff",
     objective:
-      "Refresh Java syntax, loops, input, arrays, 2D arrays, enhanced for loops, comments, and Eclipse workflow.",
-    examWeight: "Core",
+      "Review Java graphics, simple UI thinking, game loops, and event-driven project structure.",
+    examWeight: "Medium",
     checkpoints: [
-      "Write clean loops with correct bounds.",
-      "Use arrays and ArrayLists for the right job.",
-      "Trace nested loops over 2D arrays.",
-      "Explain comments, naming, and small-method structure.",
+      "Separate model state from drawing code.",
+      "Describe the draw loop, input handling, and collision/update order.",
+      "Use small classes for screens, sprites, tickets, or UI entities.",
+      "Debug visual code by logging state before changing rendering.",
     ],
     items: [
       {
-        title: "Quiz on Arrays Review",
+        title: "Java Graphics",
         type: "material",
-        date: "Feb 17",
+        date: "Apr 27",
         status: "reference",
-        skills: ["arrays", "quiz prep"],
+        skills: ["drawing APIs", "panels", "repaint"],
         reviewPrompt:
-          "Ask quick questions on array indexing, length, and common off-by-one errors.",
+          "Summarize the minimum setup needed to draw and refresh a Java graphics view.",
+        resources: [
+          video("Java 2D canvas graphics", "https://www.youtube.com/watch?v=KcEvHq8Pqs0"),
+          video(
+            "Java graphics programming: shapes, paths, curves, transforms",
+            "https://www.youtube.com/watch?v=zCiMlbu1-aQ",
+          ),
+          video(
+            "Displaying images and drawing shapes in Java",
+            "https://www.youtube.com/watch?v=UNLRwpcOldc",
+          ),
+          video("Java 2D animation", "https://www.youtube.com/watch?v=tHNWIWxRDDA"),
+          website(
+            "Drawing and coloring shapes on a JFrame",
+            "https://medium.com/@michael71314/java-lesson-21-drawing-and-coloring-shapes-on-the-jframe-d740970e1d68",
+          ),
+          website("Java AWT graphics", "https://www.geeksforgeeks.org/java/what-is-java-awt-graphics/"),
+        ],
       },
       {
-        title: "2D Arrays Recap",
+        title: "Game Lab",
         type: "material",
-        date: "Feb 11",
+        date: "May 7",
         status: "reference",
-        skills: ["2D arrays", "review"],
+        skills: ["game loop", "Pong", "collision", "input"],
         reviewPrompt:
-          "Summarize 2D arrays as arrays of rows and practice safe bounds checks.",
-      },
-      {
-        title: "Coding techniques and Eclipse Shortcuts",
-        type: "material",
-        date: "Feb 4",
-        status: "reference",
-        skills: ["IDE workflow", "comments", "formatting"],
-        reviewPrompt:
-          "List workflow habits that make Java code easier to debug and submit.",
-      },
-      {
-        title: "ArrayList VS Array in Java",
-        type: "material",
-        date: "Mar 13",
-        status: "reference",
-        skills: ["arrays", "ArrayList", "tradeoffs"],
-        reviewPrompt:
-          "Choose between arrays and ArrayLists for a scenario and justify the choice.",
+          "Plan a simple Pong-style game with update, draw, input, and collision methods.",
+        resources: [website("Simple 2D Pong in Java", "https://kevinsguides.com/guides/code/java/javaprojs/simple-2d-pong/")],
       },
     ],
   },

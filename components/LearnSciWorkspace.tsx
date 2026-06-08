@@ -18,7 +18,7 @@ import {
   X,
   Globe,
 } from "lucide-react";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Box,
   Tldraw,
@@ -245,16 +245,8 @@ function readStoredProfile(): StudyProfile | undefined {
   }
 }
 
-function initialProfile() {
-  return readStoredProfile() ?? fallbackProfile();
-}
-
-function initialSetupVisible() {
-  return !(readStoredProfile()?.setupComplete ?? false);
-}
-
-function initialTopicId() {
-  return initialProfile().topics[0]?.id ?? "graphics-gui";
+function defaultTopicId() {
+  return SUBJECT_PACKS[0].topics[0]?.id ?? "java-foundations";
 }
 
 function slugify(value: string) {
@@ -982,13 +974,13 @@ function drawDiagramOnTldraw(editor: Editor, diagram: Diagram) {
 }
 
 export function LearnSciWorkspace() {
-  const [studyProfile, setStudyProfile] = useState<StudyProfile>(() => initialProfile());
-  const [showSetup, setShowSetup] = useState(() => initialSetupVisible());
+  const [studyProfile, setStudyProfile] = useState<StudyProfile>(() => fallbackProfile());
+  const [showSetup, setShowSetup] = useState(true);
   const [setupPackId, setSetupPackId] = useState(SUBJECT_PACKS[0].id);
   const [customSubject, setCustomSubject] = useState("");
   const [customLessons, setCustomLessons] = useState("");
-  const [selectedTopicId, setSelectedTopicId] = useState(() => initialTopicId());
-  const [expandedTopicId, setExpandedTopicId] = useState(() => initialTopicId());
+  const [selectedTopicId, setSelectedTopicId] = useState(() => defaultTopicId());
+  const [expandedTopicId, setExpandedTopicId] = useState(() => defaultTopicId());
   const [selectedLessonIndex, setSelectedLessonIndex] = useState(0);
   const [sessionState, setSessionState] = useState<SessionState>("idle");
   const [status, setStatus] = useState("Ready");
@@ -1009,6 +1001,28 @@ export function LearnSciWorkspace() {
   const startedAtRef = useRef(0);
   const playerRef = useRef<HTMLAudioElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    window.setTimeout(() => {
+      if (cancelled) return;
+
+      const storedProfile = readStoredProfile();
+      if (!storedProfile) return;
+
+      const firstTopicId = storedProfile.topics[0]?.id ?? defaultTopicId();
+      setStudyProfile(storedProfile);
+      setSelectedTopicId(firstTopicId);
+      setExpandedTopicId(firstTopicId);
+      setSelectedLessonIndex(0);
+      setShowSetup(!storedProfile.setupComplete);
+    }, 0);
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const activeCurriculum = studyProfile.topics.length ? studyProfile.topics : curriculum;
   const selectedTopic = useMemo(
