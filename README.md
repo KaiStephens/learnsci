@@ -78,3 +78,4 @@ Supporting submission documents:
 - `docs/testing-log.md`
 - `docs/daily-log.md`
 - `docs/conference-progress-report.md`
+- `docs/screen-capture-script.md`
