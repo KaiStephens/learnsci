@@ -56,11 +56,11 @@ The committed curriculum is a sanitized outline inferred from Classroom topic na
 
 ## Conference / Rubric Evidence
 
-The app includes a compact **Rubric Proof** panel in the floating sidebar.
+The app keeps rubric evidence out of the main lesson rail so the interface stays minimal. Open the setup/settings modal with the gear button, then expand **Project evidence**.
 
-- **Draw proof** adds a tldraw diagram showing project evidence for OOP, 2D arrays, sorting, searching, recursion, and file I/O.
-- **Export** downloads a JSON progress log.
-- **Import** reads a previously exported progress log JSON.
+- **Export progress JSON** downloads a project progress log.
+- **Import progress JSON** reads a previously exported log with `FileReader`.
+- The evidence summary lists OOP object count, 2D grid rows, sorting output, binary-search probes, and recursive prerequisite steps.
 
 Concrete programming evidence lives in `lib/studyEngine.ts`:
 
@@ -69,6 +69,12 @@ Concrete programming evidence lives in `lib/studyEngine.ts`:
 - `selectionSortByDifficulty()` implements a sort algorithm.
 - `binarySearchByTitle()` implements a search algorithm.
 - `recursivePrerequisitePath()` includes recursion.
-- The sidebar export/import controls provide browser file output and input.
+- The setup modal export/import controls provide browser file output and input.
 
-The conference progress report is in `docs/conference-progress-report.md`.
+Supporting submission documents:
+
+- `docs/rubric-evidence.md`
+- `docs/uml-diagram.md`
+- `docs/testing-log.md`
+- `docs/daily-log.md`
+- `docs/conference-progress-report.md`

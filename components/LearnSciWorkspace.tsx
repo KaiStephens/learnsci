@@ -29,6 +29,12 @@ import {
 } from "tldraw";
 import { curriculum, getTopic, type CurriculumItem, type CurriculumTopic } from "@/lib/curriculum";
 import type { TutorToolCall } from "@/lib/openrouter";
+import {
+  createEvidenceSummary,
+  createProgressLog,
+  summarizeEvidence,
+  type ProgressLog,
+} from "@/lib/studyEngine";
 
 type SessionState = "idle" | "recording" | "thinking" | "error";
 
@@ -910,6 +916,7 @@ export function LearnSciWorkspace() {
   const chunksRef = useRef<Blob[]>([]);
   const startedAtRef = useRef(0);
   const playerRef = useRef<HTMLAudioElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -940,6 +947,7 @@ export function LearnSciWorkspace() {
   );
   const selectedLesson = selectedTopic.items[selectedLessonIndex] ?? selectedTopic.items[0];
   const latestAssistant = [...messages].reverse().find((message) => message.role === "assistant");
+  const evidenceSummary = useMemo(() => createEvidenceSummary(activeCurriculum), [activeCurriculum]);
   const updateCanvasStats = useCallback((editor = editorRef.current) => {
     if (!editor) return;
     setCanvasStats(summarizeShapes(editor));
@@ -1199,6 +1207,34 @@ export function LearnSciWorkspace() {
     setShowSetup(true);
   };
 
+  const exportProgressLog = () => {
+    const log = createProgressLog(activeCurriculum, boardSummary());
+    const blob = new Blob([JSON.stringify(log, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `learnsci-progress-${new Date().toISOString().slice(0, 10)}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+    addMessage("system", "Progress log exported as JSON.");
+  };
+
+  const importProgressLog = (file: File | undefined) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const log = JSON.parse(String(reader.result ?? "")) as ProgressLog;
+        addMessage("system", `Imported evidence: ${summarizeEvidence(log).join("; ")}.`);
+      } catch {
+        addMessage("system", `Could not read ${file.name} as a LearnSci progress log.`);
+      }
+    };
+    reader.readAsText(file);
+  };
+
   const handleMount = useCallback(
     (editor: Editor) => {
       editorRef.current = editor;
@@ -1273,6 +1309,33 @@ export function LearnSciWorkspace() {
                 />
               </div>
             ) : null}
+
+            <details className="setup-evidence">
+              <summary>Project evidence</summary>
+              <div className="setup-evidence-list">
+                {evidenceSummary.map((item) => (
+                  <span key={item}>{item}</span>
+                ))}
+              </div>
+              <div className="setup-file-actions">
+                <button onClick={exportProgressLog} type="button">
+                  Export progress JSON
+                </button>
+                <button onClick={() => fileInputRef.current?.click()} type="button">
+                  Import progress JSON
+                </button>
+              </div>
+              <input
+                accept="application/json"
+                className="file-input"
+                onChange={(event) => {
+                  importProgressLog(event.target.files?.[0]);
+                  event.target.value = "";
+                }}
+                ref={fileInputRef}
+                type="file"
+              />
+            </details>
 
             <button className="setup-primary" onClick={applyStudySetup} type="button">
               Start studying

@@ -204,6 +204,62 @@ button {
   resize: vertical;
 }
 
+.setup-evidence {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(242, 245, 242, 0.025);
+  padding: 10px 11px;
+}
+
+.setup-evidence summary {
+  color: var(--ink);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.setup-evidence-list {
+  display: grid;
+  gap: 5px;
+  margin-top: 10px;
+}
+
+.setup-evidence-list span {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.setup-file-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 11px;
+}
+
+.setup-file-actions button {
+  min-height: 32px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: transparent;
+  color: #dfe7e1;
+  cursor: pointer;
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.setup-file-actions button:hover,
+.setup-file-actions button:focus-visible {
+  border-color: var(--line-strong);
+  background: rgba(242, 245, 242, 0.05);
+  outline: none;
+}
+
+.file-input {
+  display: none;
+}
+
 .setup-primary {
   justify-self: start;
   min-height: 38px;

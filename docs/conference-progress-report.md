@@ -8,7 +8,7 @@ Date: June 7, 2026
 
 ## Summary
 
-LearnSci is an AI-powered visual study workspace for Grade 12 Computer Science review. The application uses a tldraw canvas as the main workspace, a minimal lesson sidebar for ICS4U review topics, and a voice-capable AI tutor that can explain concepts and draw editable diagrams directly on the board.
+LearnSci is an AI-powered visual study workspace for Grade 12 Computer Science review. The application uses a tldraw canvas as the main workspace, an embedded lesson sidebar for ICS4U review topics, and a voice-capable AI tutor that can explain concepts and draw editable diagrams directly on the board.
 
 The purpose of the project is to make exam review more interactive. Instead of only reading notes, a learner can choose a topic, talk to the tutor, and receive visual explanations for concepts such as object-oriented programming, 2D arrays, sorting/searching, recursion, Java graphics, and UML.
 
@@ -29,26 +29,26 @@ StudyDeck extends the curriculum into rubric evidence:
     - runs selection sort
     - runs binary search
     - builds a recursive prerequisite path
-    - exports/imports progress log JSON
+    - exports/imports progress log JSON through the settings modal
 ```
 
 ## Tasks Completed
 
 1. Built the Next.js, React, TypeScript, and tldraw app.
-2. Created a minimal floating sidebar with course units and lessons.
+2. Created a minimal embedded sidebar with course units and lessons.
 3. Added OpenRouter-backed tutor routes for chat and voice.
 4. Added speech-to-text and text-to-speech pipeline support.
 5. Added `draw_canvas` tool calling so the tutor can draw editable diagrams.
 6. Improved the drawing renderer to reduce overlapping boxes, labels, and arrows.
 7. Removed assignment-only content and kept the app focused on lessons.
 8. Added a rubric evidence engine with OOP classes, data structures, sorting, searching, recursion, and progress-log file input/output.
-9. Added a compact in-app rubric proof panel.
-10. Added progress log export/import and a board drawing that summarizes rubric evidence.
+9. Moved project evidence into the settings modal to keep the main study screen clean.
+10. Added progress log export/import for file input/output evidence.
 
 ## Current Tasks
 
 1. Test final tutor prompts with the course topics.
-2. Use the rubric proof panel during the conference.
+2. Use the settings modal project evidence section during the conference.
 3. Export the progress log JSON as file I/O evidence.
 4. Record the screen capture demonstration.
 

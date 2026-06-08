@@ -26,17 +26,26 @@ export type ProgressLog = {
   reviewGrid: string[][];
 };
 
+/**
+ * Base object-oriented class for anything that can appear in the study plan.
+ * LessonNode extends this class to show inheritance and polymorphism.
+ */
 export class StudyNode {
   constructor(
     public readonly id: string,
     public readonly title: string,
   ) {}
 
+  /** Returns the display label for a generic study node. */
   label() {
     return this.title;
   }
 }
 
+/**
+ * A concrete lesson object. It adds skills, difficulty, and rubric level data
+ * while overriding label() from StudyNode.
+ */
 export class LessonNode extends StudyNode {
   constructor(
     id: string,
@@ -48,11 +57,16 @@ export class LessonNode extends StudyNode {
     super(id, title);
   }
 
+  /** Polymorphic label used when lessons are shown as richer nodes. */
   label() {
     return `${this.title} (${this.skills.slice(0, 2).join(", ")})`;
   }
 }
 
+/**
+ * StudyDeck converts curriculum data into class objects and exposes the
+ * required rubric algorithms: 2D array building, sorting, searching, recursion.
+ */
 export class StudyDeck {
   private readonly lessons: LessonNode[];
 
@@ -75,6 +89,7 @@ export class StudyDeck {
     return [...this.lessons];
   }
 
+  /** Creates plain evidence records suitable for JSON file export. */
   toEvidence() {
     return this.lessons.map((lesson) => ({
       topicId: lesson.id.split("-").slice(0, -1).join("-"),
@@ -85,6 +100,10 @@ export class StudyDeck {
     }));
   }
 
+  /**
+   * Builds a two-dimensional review grid where each row contains up to
+   * `columns` lesson titles. This is the project's explicit 2D array evidence.
+   */
   build2DReviewGrid(columns = 3) {
     const rows: string[][] = [];
     this.lessons.forEach((lesson, index) => {
@@ -95,6 +114,10 @@ export class StudyDeck {
     return rows;
   }
 
+  /**
+   * Selection sort by calculated lesson difficulty.
+   * This intentionally uses the course-taught algorithm instead of Array.sort().
+   */
   selectionSortByDifficulty() {
     const sorted = this.allLessons();
 
@@ -114,6 +137,10 @@ export class StudyDeck {
     return sorted;
   }
 
+  /**
+   * Binary search over alphabetically sorted lesson titles.
+   * The probes array records each middle value checked for testing evidence.
+   */
   binarySearchByTitle(title: string): SearchResult {
     const sorted = this.allLessons().sort((a, b) => a.title.localeCompare(b.title));
     let low = 0;
@@ -140,6 +167,10 @@ export class StudyDeck {
     return { found: false, index: -1, probes };
   }
 
+  /**
+   * Recursively builds the prerequisite path up to a target topic.
+   * The nested helper is the explicit recursion evidence for the rubric.
+   */
   recursivePrerequisitePath(topicId: string) {
     const path = ["Java Foundations", "Object Oriented Programming", "Sorting, Searching, and Mazes", "Recursion"];
 
@@ -156,6 +187,7 @@ export class StudyDeck {
   }
 }
 
+/** Builds a complete JSON-safe project log for browser file output. */
 export function createProgressLog(topics: CurriculumTopic[], summary: string): ProgressLog {
   const deck = new StudyDeck(topics);
   const sorted = deck.selectionSortByDifficulty();
@@ -171,6 +203,7 @@ export function createProgressLog(topics: CurriculumTopic[], summary: string): P
   };
 }
 
+/** Turns a progress log into short human-readable evidence lines. */
 export function summarizeEvidence(log: ProgressLog) {
   return [
     `${log.evidence.length} lesson objects`,
@@ -178,5 +211,22 @@ export function summarizeEvidence(log: ProgressLog) {
     `${log.sortedTitles.length} lessons sorted by difficulty`,
     `${log.searchProbe.probes.length} binary-search probes`,
     `${log.recursivePath.length} recursive prerequisite steps`,
+  ];
+}
+
+/** Produces rubric evidence lines without creating a dated export file. */
+export function createEvidenceSummary(topics: CurriculumTopic[]) {
+  const deck = new StudyDeck(topics);
+  const sorted = deck.selectionSortByDifficulty();
+  const searchProbe = deck.binarySearchByTitle("Recursion Intro");
+  const recursivePath = deck.recursivePrerequisitePath("recursion");
+  const reviewGrid = deck.build2DReviewGrid();
+
+  return [
+    `${deck.toEvidence().length} lesson objects`,
+    `${reviewGrid.length} rows in a 2D review grid`,
+    `${sorted.length} lessons sorted by difficulty`,
+    `${searchProbe.probes.length} binary-search probes`,
+    `${recursivePath.length} recursive prerequisite steps`,
   ];
 }
